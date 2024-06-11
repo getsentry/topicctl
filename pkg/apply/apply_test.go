@@ -51,7 +51,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	assert.Equal(t, int64(2000000), applier.throttleBytes)
 
 	defer applier.adminClient.Close()
-	err := applier.Apply(ctx)
+	_, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
 	// Topic exists and is set up correctly
@@ -66,7 +66,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// Update retention and settings
 	applier.topicConfig.Spec.RetentionMinutes = 400
 	applier.topicConfig.Spec.Settings["cleanup.policy"] = "delete"
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// Updating replication factor not allowed
 	applier.topicConfig.Spec.Partitions = 9
 	applier.topicConfig.Spec.ReplicationFactor = 3
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NotNil(t, err)
 }
 
@@ -120,7 +120,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 	// Initial apply lays out partitions as specified in static config
 	applier := testApplier(ctx, t, topicConfig)
 	defer applier.adminClient.Close()
-	err := applier.Apply(ctx)
+	_, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err := applier.adminClient.GetTopic(ctx, topicName, true)
@@ -144,7 +144,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 
 	// Next apply converts to balanced leaders
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
@@ -168,7 +168,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 
 	// Third apply switches to in-rack
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyInRack
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
@@ -235,7 +235,7 @@ func TestApplyRebalance(t *testing.T) {
 	// Initial apply lays out partitions as specified in static config
 	applier := testApplier(ctx, t, topicConfig)
 	defer applier.adminClient.Close()
-	err := applier.Apply(ctx)
+	_, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err := applier.adminClient.GetTopic(ctx, topicName, true)
@@ -257,7 +257,7 @@ func TestApplyRebalance(t *testing.T) {
 	// Next apply rebalances
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyAny
 	applier.config.Rebalance = true
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
@@ -314,7 +314,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 	// Initial apply lays out partitions as specified in static config
 	applier := testApplier(ctx, t, topicConfig)
 	defer applier.adminClient.Close()
-	err := applier.Apply(ctx)
+	_, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err := applier.adminClient.GetTopic(ctx, topicName, true)
@@ -336,7 +336,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 	// Next apply extends by 3 partitions with balanced leader strategy
 	applier.topicConfig.Spec.Partitions = 6
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
@@ -426,12 +426,12 @@ func TestApplyExistingThrottles(t *testing.T) {
 	// Create topics
 	applier1 := testApplier(ctx, t, topicConfig1)
 	defer applier1.adminClient.Close()
-	err := applier1.Apply(ctx)
+	_, err := applier1.Apply(ctx)
 	require.NoError(t, err)
 
 	applier2 := testApplier(ctx, t, topicConfig2)
 	defer applier2.adminClient.Close()
-	err = applier2.Apply(ctx)
+	_, err = applier2.Apply(ctx)
 	require.NoError(t, err)
 
 	supported1 := applier1.adminClient.GetSupportedFeatures()
@@ -500,7 +500,7 @@ func TestApplyExistingThrottles(t *testing.T) {
 	// Reapply topic1 with new applier (to pick up updated brokers)
 	updatedApplier1 := testApplier(ctx, t, topicConfig1)
 	defer updatedApplier1.adminClient.Close()
-	err = updatedApplier1.Apply(ctx)
+	_, err = updatedApplier1.Apply(ctx)
 	require.NoError(t, err)
 
 	updatedTopic, err := updatedApplier1.adminClient.GetTopic(ctx, topicName1, false)
@@ -511,7 +511,7 @@ func TestApplyExistingThrottles(t *testing.T) {
 
 	// Remove the lock and reapply
 	require.Nil(t, lock.Unlock())
-	err = updatedApplier1.Apply(ctx)
+	_, err = updatedApplier1.Apply(ctx)
 	require.NoError(t, err)
 
 	updatedTopic, err = updatedApplier1.adminClient.GetTopic(ctx, topicName1, false)
@@ -540,7 +540,7 @@ func TestApplyExistingThrottles(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = updatedApplier1.Apply(ctx)
+	_, err = updatedApplier1.Apply(ctx)
 	require.NoError(t, err)
 	brokers, err = updatedApplier1.adminClient.GetBrokers(ctx, nil)
 	require.NoError(t, err)
@@ -579,7 +579,7 @@ func TestApplyDryRun(t *testing.T) {
 	applier := testApplier(ctx, t, topicConfig)
 	defer applier.adminClient.Close()
 	applier.config.DryRun = true
-	err := applier.Apply(ctx)
+	_, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
 	// Dry-run on, topic not created
@@ -588,7 +588,7 @@ func TestApplyDryRun(t *testing.T) {
 	require.Equal(t, 0, len(topics))
 
 	applier.config.DryRun = false
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	// Dry-run off, topic created
@@ -602,7 +602,7 @@ func TestApplyDryRun(t *testing.T) {
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyInRack
 
 	applier.config.DryRun = true
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 
 	// Changes not made
