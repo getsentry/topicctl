@@ -68,7 +68,7 @@ func SortedKeysByValue(input map[int]int, asc bool, keySorter KeySorter) []int {
 	return keys
 }
 
-// merges 2 maps into a single map object
+// shallow merges two maps into a single map object
 func MergeMaps(a map[string]interface{}, b map[string]interface{}) map[string]interface{} {
 	for k, v := range b {
 		a[k] = v
