@@ -159,7 +159,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{
 
 	if t.config.DryRun {
 		log.Infof("Would create topic with config %+v", newTopicConfig)
-		changes, err := util.ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
+		changes, err := ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -200,7 +200,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{
 	}
 
 	// add new topic config to changes map
-	changes, err := util.ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
+	changes, err := ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
 	if err != nil {
 		return nil, err
 	}

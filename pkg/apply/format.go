@@ -194,3 +194,21 @@ func timeSuffix(msStr string) string {
 
 	return fmt.Sprintf(" (%d min)", msInt/60000)
 }
+
+// processes TopicConfig object into a map
+func ProcessTopicConfigIntoMap(topicName string, topicConfig kafka.TopicConfig) (map[string]interface{}, error) {
+	changes := make(map[string]interface{})
+	// add newly created topic to changes json object
+	changes[topicName] = topicConfig
+	// encode and decode changes as json to convert value from TopicConfig to map
+	// TODO: better way of doing this?
+	changesJson, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(changesJson, &changes); err != nil {
+		return nil, err
+	}
+	changes[topicName].(map[string]interface{})["Action"] = "create"
+	return changes, nil
+}
