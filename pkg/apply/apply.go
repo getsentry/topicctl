@@ -238,23 +238,22 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*ChangesTracker, erro
 		return nil, err
 	}
 
+	// add new topic config to changes map
+	changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
+
 	// Just do a short sleep to ensure that zk is updated before we check
 	if err := interruptableSleep(ctx, t.config.SleepLoopDuration/5); err != nil {
 		return nil, err
 	}
 
+	// TODO: add partition placement updates to ChangesTracker
 	if err := t.updatePlacement(ctx, -1, true); err != nil {
-		return nil, err
+		return changes, err
 	}
 
+	// TODO: add leader elections to ChangesTracker
 	if err := t.updateLeaders(ctx, -1); err != nil {
-		return nil, err
-	}
-
-	// add new topic config to changes map
-	changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
-	if err != nil {
-		return nil, err
+		return changes, err
 	}
 
 	return changes, nil
@@ -456,7 +455,8 @@ func (t *TopicApplier) updateSettings(
 		return nil, err
 	}
 
-	changes := &ChangesTracker{}
+	var changes *ChangesTracker
+
 	if len(diffKeys) > 0 {
 		diffsTable, err := FormatSettingsDiff(topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
