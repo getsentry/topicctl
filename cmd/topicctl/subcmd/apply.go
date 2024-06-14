@@ -2,6 +2,7 @@ package subcmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -13,7 +14,6 @@ import (
 	"github.com/segmentio/topicctl/pkg/apply"
 	"github.com/segmentio/topicctl/pkg/cli"
 	"github.com/segmentio/topicctl/pkg/config"
-	"github.com/segmentio/topicctl/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -47,6 +47,11 @@ type applyCmdConfig struct {
 }
 
 var applyConfig applyCmdConfig
+
+type allChanges struct {
+	Changes []apply.ChangesTracker
+	DryRun  bool
+}
 
 func init() {
 	applyCmd.Flags().IntSliceVar(
@@ -207,6 +212,16 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
+// prints map of changes being made to stdout
+func printChangesMap(changesMap allChanges) error {
+	jsonChanges, err := json.Marshal(changesMap)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n", jsonChanges)
+	return nil
+}
+
 func applyTopic(
 	ctx context.Context,
 	topicConfigPath string,
@@ -248,8 +263,9 @@ func applyTopic(
 	cliRunner := cli.NewCLIRunner(adminClient, log.Infof, false)
 
 	// initialize changesMap and add dry run flag
-	allChanges := make(map[string]interface{})
-	allChanges["dryRun"] = applyConfig.dryRun
+	changesToBePrinted := allChanges{
+		DryRun: applyConfig.dryRun,
+	}
 
 	for _, topicConfig := range topicConfigs {
 		topicConfig.SetDefaults()
@@ -275,15 +291,19 @@ func applyTopic(
 			SleepLoopDuration:          applyConfig.sleepLoopDuration,
 			TopicConfig:                topicConfig,
 		}
-		changes, err := cliRunner.ApplyTopic(ctx, applierConfig)
+		topicChanges, err := cliRunner.ApplyTopic(ctx, applierConfig)
 		if err != nil {
 			return err
 		}
-		allChanges = util.MergeMaps(allChanges, changes)
+		if topicChanges != nil {
+			changesToBePrinted.Changes = append(changesToBePrinted.Changes, *topicChanges)
+		}
 	}
 
 	if applyConfig.jsonOutput {
-		util.PrintChangesMap(allChanges)
+		if err := printChangesMap(changesToBePrinted); err != nil {
+			return err
+		}
 	}
 
 	return nil

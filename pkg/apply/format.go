@@ -93,16 +93,15 @@ func FormatSettingsDiff(
 	return string(bytes.TrimRight(buf.Bytes(), "\n")), nil
 }
 
-// FormatSettingsDiffMap formats the settings diffs as a map object instead of a table
+// FormatSettingsDiffMap formats the settings diffs as a ChangesTracker object instead of a table
 func FormatSettingsDiffMap(
 	topicName string,
 	topicSettings config.TopicSettings,
 	configMap map[string]string,
 	diffKeys []string,
-) (map[string]interface{}, error) {
-	diffsMap := make(map[string]interface{})
-	diffsMap[topicName] = make(map[string]interface{})
+) (*ChangesTracker, error) {
 
+	configEntries := make([]ConfigEntryChanges, 0)
 	for _, diffKey := range diffKeys {
 		configValueStr := configMap[diffKey]
 
@@ -116,13 +115,42 @@ func FormatSettingsDiffMap(
 			}
 		}
 
-		diffsMap[topicName].(map[string]interface{})["Action"] = "update"
-		diffsMap[topicName].(map[string]interface{})[diffKey] = map[string]interface{}{
-			"current": configValueStr,
-			"updated": valueStr,
-		}
+		configEntries = append(configEntries, ConfigEntryChanges{
+			Name:    diffKey,
+			Current: configValueStr,
+			Updated: valueStr,
+		})
 	}
-	return diffsMap, nil
+
+	return &ChangesTracker{
+		Topic:              topicName,
+		NumPartitions:      IntValueChanges{},
+		ReplicationFactor:  IntValueChanges{},
+		ReplicaAssignments: nil,
+		ConfigEntries:      configEntries,
+		Action:             ActionEnumUpdate,
+	}, nil
+}
+
+// processes TopicConfig object from topic creation into a ChangesTracker
+func ProcessTopicConfigIntoChanges(topicName string, topicConfig kafka.TopicConfig) *ChangesTracker {
+	configEntries := make([]ConfigEntryChanges, 0)
+	for _, entry := range topicConfig.ConfigEntries {
+		configEntries = append(configEntries, ConfigEntryChanges{
+			Name:    entry.ConfigName,
+			Current: entry.ConfigValue,
+			Updated: entry.ConfigValue,
+		})
+	}
+
+	return &ChangesTracker{
+		Topic:              topicConfig.Topic,
+		NumPartitions:      IntValueChanges{Current: topicConfig.NumPartitions, Updated: topicConfig.NumPartitions},
+		ReplicationFactor:  IntValueChanges{Current: topicConfig.ReplicationFactor, Updated: topicConfig.ReplicationFactor},
+		ReplicaAssignments: nil,
+		ConfigEntries:      configEntries,
+		Action:             ActionEnumCreate,
+	}
 }
 
 // FormatMissingKeys generates a table that summarizes the key/value pairs
@@ -193,22 +221,4 @@ func timeSuffix(msStr string) string {
 	}
 
 	return fmt.Sprintf(" (%d min)", msInt/60000)
-}
-
-// processes TopicConfig object into a map
-func ProcessTopicConfigIntoMap(topicName string, topicConfig kafka.TopicConfig) (map[string]interface{}, error) {
-	changes := make(map[string]interface{})
-	// add newly created topic to changes json object
-	changes[topicName] = topicConfig
-	// encode and decode changes as json to convert value from TopicConfig to map
-	// TODO: better way of doing this?
-	changesJson, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(changesJson, &changes); err != nil {
-		return nil, err
-	}
-	changes[topicName].(map[string]interface{})["Action"] = "create"
-	return changes, nil
 }

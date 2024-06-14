@@ -58,6 +58,61 @@ type TopicApplier struct {
 	topicName     string
 }
 
+// IntValueChanges stores changes in integer values (NumPartitions & ReplicationFactor)
+// if a topic is being created then Updated == Current
+type IntValueChanges struct {
+	Current int
+	Updated int
+}
+
+// ConfigEntryChanges holds configs to be updated, as well as their current and updated values
+// if a topic is being created then Updated == Current
+type ConfigEntryChanges struct {
+	Name    string
+	Current string
+	Updated string
+}
+
+// ReplicaAssignmentChanges stores replica reassignment
+// if a topic is being created then UpdatedReplicas == CurrentReplicas
+// TODO: update Changes to actually support replica reassignment
+type ReplicaAssignmentChanges struct {
+	Partition       int
+	CurrentReplicas []int
+	UpdatedReplicas []int
+}
+
+// enum for possible Action values in ChangesTracker
+type ActionEnum string
+
+const (
+	ActionEnumCreate ActionEnum = "create"
+	ActionEnumUpdate ActionEnum = "update"
+)
+
+// ChangesTracker stores what's changed in a topic during an apply run
+// to eventually be printed to stdout as a JSON blob in subcmd/apply.go
+type ChangesTracker struct {
+	// Topic name
+	Topic string
+
+	// NumPartitions created. -1 indicates unset.
+	NumPartitions IntValueChanges
+
+	// ReplicationFactor for the topic. -1 indicates unset.
+	ReplicationFactor IntValueChanges
+
+	// ReplicaAssignments among kafka brokers for this topic partitions. If this
+	// is set num_partitions and replication_factor must be unset.
+	ReplicaAssignments []ReplicaAssignmentChanges
+
+	// ConfigEntries holds topic level configuration for topic to be set.
+	ConfigEntries []ConfigEntryChanges
+
+	// Action records whether this is a topic being created or updated
+	Action ActionEnum
+}
+
 // NewTopicApplier creates and returns a new TopicApplier instance.
 func NewTopicApplier(
 	ctx context.Context,
@@ -123,7 +178,7 @@ func NewTopicApplier(
 //     c. Check partition count and extend if needed
 //     d. Check partition placement and update/migrate if needed
 //     e. Check partition leaders and update if needed
-func (t *TopicApplier) Apply(ctx context.Context) (map[string]interface{}, error) {
+func (t *TopicApplier) Apply(ctx context.Context) (*ChangesTracker, error) {
 	log.Info("Validating configs...")
 	brokerRacks := admin.DistinctRacks(t.brokers)
 
@@ -151,7 +206,7 @@ func (t *TopicApplier) Apply(ctx context.Context) (map[string]interface{}, error
 	return t.applyExistingTopic(ctx, topicInfo)
 }
 
-func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{}, error) {
+func (t *TopicApplier) applyNewTopic(ctx context.Context) (*ChangesTracker, error) {
 	newTopicConfig, err := t.topicConfig.ToNewTopicConfig()
 	if err != nil {
 		return nil, err
@@ -159,10 +214,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{
 
 	if t.config.DryRun {
 		log.Infof("Would create topic with config %+v", newTopicConfig)
-		changes, err := ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
-		if err != nil {
-			return nil, err
-		}
+		changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
 		return changes, nil
 	}
 
@@ -200,7 +252,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{
 	}
 
 	// add new topic config to changes map
-	changes, err := ProcessTopicConfigIntoMap(t.topicConfig.Meta.Name, newTopicConfig)
+	changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +263,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (map[string]interface{
 func (t *TopicApplier) applyExistingTopic(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
-) (map[string]interface{}, error) {
+) (*ChangesTracker, error) {
 	log.Infof("Updating existing topic '%s'", t.topicName)
 
 	if err := t.checkExistingState(ctx, topicInfo); err != nil {
@@ -372,7 +424,7 @@ func (t *TopicApplier) checkExistingState(
 func (t *TopicApplier) updateSettings(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
-) (map[string]interface{}, error) {
+) (*ChangesTracker, error) {
 	log.Infof("Checking topic config settings...")
 
 	topicSettings := t.topicConfig.Spec.Settings.Copy()
@@ -404,7 +456,7 @@ func (t *TopicApplier) updateSettings(
 		return nil, err
 	}
 
-	diffsMap := make(map[string]interface{})
+	changes := &ChangesTracker{}
 	if len(diffKeys) > 0 {
 		diffsTable, err := FormatSettingsDiff(topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
@@ -415,7 +467,7 @@ func (t *TopicApplier) updateSettings(
 			len(diffKeys),
 			diffsTable,
 		)
-		diffsMap, err = FormatSettingsDiffMap(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
+		changes, err := FormatSettingsDiffMap(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
 			return nil, err
 		}
@@ -434,7 +486,7 @@ func (t *TopicApplier) updateSettings(
 
 		if t.config.DryRun {
 			log.Infof("Skipping update because dryRun is set to true")
-			return diffsMap, nil
+			return changes, nil
 		}
 
 		ok, _ := util.Confirm(
@@ -470,7 +522,7 @@ func (t *TopicApplier) updateSettings(
 		)
 	}
 
-	return diffsMap, nil
+	return changes, nil
 }
 
 func (t *TopicApplier) updateReplication(

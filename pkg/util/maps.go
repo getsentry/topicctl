@@ -1,8 +1,6 @@
 package util
 
 import (
-	"encoding/json"
-	"fmt"
 	"hash/fnv"
 	"math/rand"
 	"sort"
@@ -74,14 +72,4 @@ func MergeMaps(a map[string]interface{}, b map[string]interface{}) map[string]in
 		a[k] = v
 	}
 	return a
-}
-
-// prints map of changes being made to stdout
-func PrintChangesMap(changesMap map[string]interface{}) error {
-	jsonChanges, err := json.Marshal(changesMap)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("%s\n", jsonChanges)
-	return nil
 }
