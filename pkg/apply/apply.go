@@ -109,6 +109,9 @@ type ChangesTracker struct {
 	// ConfigEntries holds topic level configuration for topic to be set.
 	ConfigEntries []ConfigEntryChanges
 
+	// MissingKeys stores configs which are set in the cluster but not in the topicctl config
+	MissingKeys []string
+
 	// Action records whether this is a topic being created or updated
 	Action ActionEnum
 }
@@ -467,7 +470,7 @@ func (t *TopicApplier) updateSettings(
 			len(diffKeys),
 			diffsTable,
 		)
-		changes, err := FormatSettingsDiffMap(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
+		changes, err := FormatSettingsDiffTracker(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
 			return nil, err
 		}
@@ -485,6 +488,14 @@ func (t *TopicApplier) updateSettings(
 		}
 
 		if t.config.DryRun {
+			if len(missingKeys) > 0 {
+				log.Warnf(
+					"Found %d key(s) set in cluster but missing from config:\n%s\nThese will be left as-is.",
+					len(missingKeys),
+					FormatMissingKeys(topicInfo.Config, missingKeys),
+				)
+				changes.MissingKeys = missingKeys
+			}
 			log.Infof("Skipping update because dryRun is set to true")
 			return changes, nil
 		}
@@ -512,14 +523,6 @@ func (t *TopicApplier) updateSettings(
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	if len(missingKeys) > 0 {
-		log.Warnf(
-			"Found %d key(s) set in cluster but missing from config:\n%s\nThese will be left as-is.",
-			len(missingKeys),
-			FormatMissingKeys(topicInfo.Config, missingKeys),
-		)
 	}
 
 	return changes, nil

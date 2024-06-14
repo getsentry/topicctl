@@ -93,8 +93,8 @@ func FormatSettingsDiff(
 	return string(bytes.TrimRight(buf.Bytes(), "\n")), nil
 }
 
-// FormatSettingsDiffMap formats the settings diffs as a ChangesTracker object instead of a table
-func FormatSettingsDiffMap(
+// FormatSettingsDiffTracker formats the settings diffs as a ChangesTracker object instead of a table
+func FormatSettingsDiffTracker(
 	topicName string,
 	topicSettings config.TopicSettings,
 	configMap map[string]string,
@@ -126,8 +126,9 @@ func FormatSettingsDiffMap(
 		Topic:              topicName,
 		NumPartitions:      IntValueChanges{},
 		ReplicationFactor:  IntValueChanges{},
-		ReplicaAssignments: nil,
+		ReplicaAssignments: []ReplicaAssignmentChanges{},
 		ConfigEntries:      configEntries,
+		MissingKeys:        []string{},
 		Action:             ActionEnumUpdate,
 	}, nil
 }
@@ -147,8 +148,9 @@ func ProcessTopicConfigIntoChanges(topicName string, topicConfig kafka.TopicConf
 		Topic:              topicConfig.Topic,
 		NumPartitions:      IntValueChanges{Current: topicConfig.NumPartitions, Updated: topicConfig.NumPartitions},
 		ReplicationFactor:  IntValueChanges{Current: topicConfig.ReplicationFactor, Updated: topicConfig.ReplicationFactor},
-		ReplicaAssignments: nil,
+		ReplicaAssignments: []ReplicaAssignmentChanges{},
 		ConfigEntries:      configEntries,
+		MissingKeys:        []string{},
 		Action:             ActionEnumCreate,
 	}
 }
