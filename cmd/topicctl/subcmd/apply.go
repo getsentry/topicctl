@@ -49,8 +49,8 @@ type applyCmdConfig struct {
 var applyConfig applyCmdConfig
 
 type allChanges struct {
-	Changes []apply.ChangesTracker
-	DryRun  bool
+	Changes []apply.ChangesTracker `json:"changes"`
+	DryRun  bool                   `json:"dryRun"`
 }
 
 func init() {
