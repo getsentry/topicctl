@@ -107,7 +107,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// Settings are not deleted if Destructive is false. They are
 	// if it is true
 	delete(applier.topicConfig.Spec.Settings, "cleanup.policy")
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
@@ -115,7 +115,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	assert.Equal(t, "delete", topicInfo.Config["cleanup.policy"])
 
 	applier.config.Destructive = true
-	err = applier.Apply(ctx)
+	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)

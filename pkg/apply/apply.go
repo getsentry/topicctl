@@ -380,7 +380,7 @@ func (t *TopicApplier) updateSettings(
 			len(diffKeys),
 			diffsTable,
 		)
-		changes, err := FormatSettingsDiffTracker(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
+		changes, err = FormatSettingsDiffTracker(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
 			return nil, err
 		}

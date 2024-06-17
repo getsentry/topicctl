@@ -20,6 +20,7 @@ type TopicApplierConfig struct {
 	RetentionDropStepDuration  time.Duration
 	SkipConfirm                bool
 	IgnoreFewerPartitionsError bool
+	Destructive                bool
 	SleepLoopDuration          time.Duration
 	TopicConfig                config.TopicConfig
 }
