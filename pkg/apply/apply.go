@@ -368,6 +368,7 @@ func (t *TopicApplier) updateSettings(
 	}
 
 	var changes *ChangesTracker
+	configEntries := []kafka.ConfigEntry{}
 
 	if len(diffKeys) > 0 {
 		diffsTable, err := FormatSettingsDiff(topicSettings, topicInfo.Config, diffKeys)
@@ -396,6 +397,23 @@ func (t *TopicApplier) updateSettings(
 			)
 		}
 
+		configEntries, err = topicSettings.ToConfigEntries(diffKeys)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if len(missingKeys) > 0 && t.config.Destructive {
+		log.Infof(
+			"Found %d key(s) set in cluster but missing from config to be deleted:\n%s",
+			len(missingKeys),
+			FormatMissingKeys(topicInfo.Config, missingKeys),
+		)
+
+		configEntries = append(configEntries, topicSettings.ToEmptyConfigEntries(missingKeys)...)
+	}
+
+	if len(configEntries) > 0 {
 		if t.config.DryRun {
 			if len(missingKeys) > 0 {
 				log.Warnf(
@@ -418,11 +436,6 @@ func (t *TopicApplier) updateSettings(
 		}
 		log.Infof("OK, updating")
 
-		configEntries, err := topicSettings.ToConfigEntries(diffKeys)
-		if err != nil {
-			return nil, err
-		}
-
 		_, err = t.adminClient.UpdateTopicConfig(
 			ctx,
 			t.topicName,
@@ -432,6 +445,14 @@ func (t *TopicApplier) updateSettings(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if len(missingKeys) > 0 && !t.config.Destructive {
+		log.Warnf(
+			"Found %d key(s) set in cluster but missing from config:\n%s\nThese will be left as-is.",
+			len(missingKeys),
+			FormatMissingKeys(topicInfo.Config, missingKeys),
+		)
 	}
 
 	return changes, nil
