@@ -2,7 +2,6 @@ package apply
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -51,8 +50,31 @@ func TestApplyBasicUpdates(t *testing.T) {
 	assert.Equal(t, int64(2000000), applier.throttleBytes)
 
 	defer applier.adminClient.Close()
-	_, err := applier.Apply(ctx)
+	changes, err := applier.Apply(ctx)
 	require.NoError(t, err)
+
+	// test ChangesTracker has expected shape
+	expectedChanges := &ChangesTracker{
+		Topic:              topicName,
+		NumPartitions:      IntValueChanges{Current: 9, Updated: 9},
+		ReplicationFactor:  IntValueChanges{Current: 2, Updated: 2},
+		ReplicaAssignments: []ReplicaAssignmentChanges{},
+		ConfigEntries: []ConfigEntryChanges{
+			{
+				Name:    "cleanup.policy",
+				Current: "compact",
+				Updated: "compact",
+			},
+			{
+				Name:    "retention.ms",
+				Current: "30000000",
+				Updated: "30000000",
+			},
+		},
+		MissingKeys: []string{},
+		Action:      "create",
+	}
+	assert.Equal(t, changes, expectedChanges)
 
 	// Topic exists and is set up correctly
 	topicInfo, err := applier.adminClient.GetTopic(ctx, topicName, true)
@@ -143,6 +165,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply converts to balanced leaders
+	// TODO: test changes once rebalancing is in ChangesTracker
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
 	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
@@ -255,6 +278,7 @@ func TestApplyRebalance(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply rebalances
+	// TODO: test changes once rebalancing is in ChangesTracker
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyAny
 	applier.config.Rebalance = true
 	_, err = applier.Apply(ctx)
@@ -334,6 +358,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply extends by 3 partitions with balanced leader strategy
+	// TODO: test changes once partition updates are in ChangesTracker
 	applier.topicConfig.Spec.Partitions = 6
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
 	_, err = applier.Apply(ctx)
@@ -898,10 +923,6 @@ func TestApplyOverrides(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(50000000), applier.throttleBytes)
 	assert.Equal(t, applier.maxBatchSize, 8)
-}
-
-func testTopicName(name string) string {
-	return util.RandomString(fmt.Sprintf("topic-%s-", name), 6)
 }
 
 func testApplier(

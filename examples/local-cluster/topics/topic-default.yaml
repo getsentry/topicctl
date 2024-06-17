@@ -14,4 +14,22 @@ spec:
     strategy: in-rack
   settings:
     cleanup.policy: delete
+    max.message.bytes: 600000
+---
+meta:
+  name: topic-default1
+  cluster: local-cluster
+  environment: local-env
+  region: local-region
+  description: |
+    Topic that uses default (any) strategy for assigning partition brokers.
+
+spec:
+  partitions: 6
+  replicationFactor: 2
+  retentionMinutes: 100
+  placement:
+    strategy: in-rack
+  settings:
+    cleanup.policy: delete
     max.message.bytes: 5542880
