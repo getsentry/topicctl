@@ -25,6 +25,40 @@ import (
 
 var ErrFewerPartitions = errors.New("fewer partitions in topic config")
 
+// TopicApplierConfig contains the configuration for a TopicApplier struct.
+type TopicApplierConfig struct {
+	BrokerThrottleMBsOverride  int
+	BrokersToRemove            []int
+	ClusterConfig              config.ClusterConfig
+	DryRun                     bool
+	JsonOutput                 bool
+	PartitionBatchSizeOverride int
+	Rebalance                  bool
+	AutoContinueRebalance      bool
+	RetentionDropStepDuration  time.Duration
+	SkipConfirm                bool
+	IgnoreFewerPartitionsError bool
+	Destructive                bool
+	SleepLoopDuration          time.Duration
+	TopicConfig                config.TopicConfig
+}
+
+// TopicApplier executes an "apply" run on a topic by comparing the actual
+// and desired configurations, and then updating the topic as necessary to
+// align the two.
+type TopicApplier struct {
+	config      TopicApplierConfig
+	adminClient admin.Client
+	brokers     []admin.BrokerInfo
+
+	// Pull out some fields for easier access
+	clusterConfig config.ClusterConfig
+	maxBatchSize  int
+	throttleBytes int64
+	topicConfig   config.TopicConfig
+	topicName     string
+}
+
 // NewTopicApplier creates and returns a new TopicApplier instance.
 func NewTopicApplier(
 	ctx context.Context,
