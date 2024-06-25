@@ -93,15 +93,17 @@ func FormatSettingsDiff(
 	return string(bytes.TrimRight(buf.Bytes(), "\n")), nil
 }
 
-// FormatSettingsDiffTracker formats the settings diffs as a ChangesTracker object instead of a table
+// FormatSettingsDiffTracker formats the settings diffs as an
+// UpdateChangesTracker object instead of a table
 func FormatSettingsDiffTracker(
 	topicName string,
 	topicSettings config.TopicSettings,
 	configMap map[string]string,
 	diffKeys []string,
-) (*ChangesTracker, error) {
+) (*UpdateChangesTracker, error) {
 
-	configEntries := make([]ConfigEntryChanges, 0)
+	newConfigEntries := make([]NewConfigEntry, 0)
+	updatedConfigEntries := make([]ConfigEntryChanges, 0)
 	for _, diffKey := range diffKeys {
 		configValueStr := configMap[diffKey]
 
@@ -115,43 +117,45 @@ func FormatSettingsDiffTracker(
 			}
 		}
 
-		configEntries = append(configEntries, ConfigEntryChanges{
-			Name:    diffKey,
-			Current: configValueStr,
-			Updated: valueStr,
-		})
+		if configValueStr == "" {
+			newConfigEntries = append(newConfigEntries, NewConfigEntry{
+				Name:  diffKey,
+				Value: valueStr,
+			})
+		} else {
+			updatedConfigEntries = append(updatedConfigEntries, ConfigEntryChanges{
+				Name:    diffKey,
+				Current: configValueStr,
+				Updated: valueStr,
+			})
+		}
 	}
 
-	return &ChangesTracker{
-		Topic:              topicName,
-		NumPartitions:      IntValueChanges{},
-		ReplicationFactor:  IntValueChanges{},
-		ReplicaAssignments: []ReplicaAssignmentChanges{},
-		ConfigEntries:      configEntries,
-		MissingKeys:        []string{},
-		Action:             ActionEnumUpdate,
+	return &UpdateChangesTracker{
+		Topic:                topicName,
+		NewConfigEntries:     &newConfigEntries,
+		UpdatedConfigEntries: &updatedConfigEntries,
+		MissingKeys:          []string{},
+		Action:               ActionEnumUpdate,
 	}, nil
 }
 
 // processes TopicConfig object from topic creation into a ChangesTracker
-func ProcessTopicConfigIntoChanges(topicName string, topicConfig kafka.TopicConfig) *ChangesTracker {
-	configEntries := make([]ConfigEntryChanges, 0)
+func ProcessTopicConfigIntoChanges(topicName string, topicConfig kafka.TopicConfig) *NewChangesTracker {
+	configEntries := make([]NewConfigEntry, 0)
 	for _, entry := range topicConfig.ConfigEntries {
-		configEntries = append(configEntries, ConfigEntryChanges{
-			Name:    entry.ConfigName,
-			Current: entry.ConfigValue,
-			Updated: entry.ConfigValue,
+		configEntries = append(configEntries, NewConfigEntry{
+			Name:  entry.ConfigName,
+			Value: entry.ConfigValue,
 		})
 	}
 
-	return &ChangesTracker{
-		Topic:              topicConfig.Topic,
-		NumPartitions:      IntValueChanges{Current: topicConfig.NumPartitions, Updated: topicConfig.NumPartitions},
-		ReplicationFactor:  IntValueChanges{Current: topicConfig.ReplicationFactor, Updated: topicConfig.ReplicationFactor},
-		ReplicaAssignments: []ReplicaAssignmentChanges{},
-		ConfigEntries:      configEntries,
-		MissingKeys:        []string{},
-		Action:             ActionEnumCreate,
+	return &NewChangesTracker{
+		Topic:             topicConfig.Topic,
+		NumPartitions:     topicConfig.NumPartitions,
+		ReplicationFactor: topicConfig.ReplicationFactor,
+		ConfigEntries:     &configEntries,
+		Action:            ActionEnumCreate,
 	}
 }
 

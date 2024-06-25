@@ -50,8 +50,9 @@ type applyCmdConfig struct {
 var applyConfig applyCmdConfig
 
 type allChanges struct {
-	Changes []apply.ChangesTracker `json:"changes"`
-	DryRun  bool                   `json:"dryRun"`
+	NewTopics     []apply.NewChangesTracker    `json:"newTopics"`
+	UpdatedTopics []apply.UpdateChangesTracker `json:"updatedTopics"`
+	DryRun        bool                         `json:"dryRun"`
 }
 
 func init() {
@@ -219,14 +220,33 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
-// prints map of changes being made to stdout
-func printChangesMap(changesMap allChanges) error {
-	jsonChanges, err := json.Marshal(changesMap)
-	if err != nil {
-		return err
+// unpacks a NewOrUpdatedChanges object into allChanges' NewTopics and UpdatedTopics lists
+func unpackChanges(currentChange *apply.NewOrUpdatedChanges, changeList allChanges) allChanges {
+	if currentChange.NewChanges != nil {
+		// fmt.Printf("new changes: %#v\n\n", currentChange.NewChanges)
+		changeList.NewTopics = append(changeList.NewTopics, *currentChange.NewChanges)
 	}
+	if currentChange.UpdateChanges != nil {
+		// fmt.Printf("updated changes: %#v\n\n", currentChange.UpdateChanges)
+		changeList.UpdatedTopics = append(changeList.UpdatedTopics, *currentChange.UpdateChanges)
+	}
+	// fmt.Printf("changelist: %#v\n\n", changeList)
+	return changeList
+}
+
+// prints JSON blob of changes being made to stdout
+// returns the JSON blob as a map object
+func printChanges(changes allChanges) (map[string]interface{}, error) {
+	jsonChanges, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	//print json to stdout
 	fmt.Printf("%s\n", jsonChanges)
-	return nil
+	// return unmarshalled map
+	changesMap := make(map[string]interface{})
+	err = json.Unmarshal(jsonChanges, &changesMap)
+	return changesMap, err
 }
 
 func applyTopic(
@@ -301,15 +321,28 @@ func applyTopic(
 		}
 		topicChanges, err := cliRunner.ApplyTopic(ctx, applierConfig)
 		if err != nil {
+			// if one of the steps after updateSettings errors when updating a topic,
+			// we can be in a state where some (but not all) changes were applied
+			if topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil {
+				changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
+				log.Error("Error detected while updating topic, the following changes were still made:")
+				partialChanges, err := printChanges(changesToBePrinted)
+				if err != nil {
+					log.Error("Error printing JSON changes data")
+					return err
+				}
+				log.Errorf("%#v", partialChanges)
+			}
 			return err
 		}
-		if topicChanges != nil {
-			changesToBePrinted.Changes = append(changesToBePrinted.Changes, *topicChanges)
+		if topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil {
+			changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
 		}
 	}
 
-	if applyConfig.jsonOutput {
-		if err := printChangesMap(changesToBePrinted); err != nil {
+	// ensure we're not printing empty json if there's no changes to the topic
+	if applyConfig.jsonOutput && (changesToBePrinted.NewTopics != nil || changesToBePrinted.UpdatedTopics != nil) {
+		if _, err := printChanges(changesToBePrinted); err != nil {
 			return err
 		}
 	}

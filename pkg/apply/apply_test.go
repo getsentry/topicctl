@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -53,26 +54,25 @@ func TestApplyBasicUpdates(t *testing.T) {
 	changes, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
-	// test ChangesTracker has expected shape
-	expectedChanges := &ChangesTracker{
-		Topic:              topicName,
-		NumPartitions:      IntValueChanges{Current: 9, Updated: 9},
-		ReplicationFactor:  IntValueChanges{Current: 2, Updated: 2},
-		ReplicaAssignments: []ReplicaAssignmentChanges{},
-		ConfigEntries: []ConfigEntryChanges{
-			{
-				Name:    "cleanup.policy",
-				Current: "compact",
-				Updated: "compact",
+	// test NewOrUpdatedChanges has expected shape when creating topic
+	expectedChanges := &NewOrUpdatedChanges{
+		NewChanges: &NewChangesTracker{
+			Topic:             topicName,
+			NumPartitions:     9,
+			ReplicationFactor: 2,
+			ConfigEntries: &[]NewConfigEntry{
+				{
+					Name:  "cleanup.policy",
+					Value: "compact",
+				},
+				{
+					Name:  "retention.ms",
+					Value: "30000000",
+				},
 			},
-			{
-				Name:    "retention.ms",
-				Current: "30000000",
-				Updated: "30000000",
-			},
+			Action: "create",
 		},
-		MissingKeys: []string{},
-		Action:      "create",
+		UpdateChanges: nil,
 	}
 	assert.Equal(t, changes, expectedChanges)
 
@@ -88,10 +88,42 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// Update retention and settings
 	applier.topicConfig.Spec.RetentionMinutes = 400
 	applier.topicConfig.Spec.Settings["cleanup.policy"] = "delete"
-	_, err = applier.Apply(ctx)
+	applier.topicConfig.Spec.Settings["max.message.bytes"] = "600000"
+	changes, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
+
+	// test NewOrUpdatedChanges has expected shape when updating configs
+	expectedChanges = &NewOrUpdatedChanges{
+		NewChanges: nil,
+		UpdateChanges: &UpdateChangesTracker{
+			Action: "update",
+			Topic:  topicName,
+			NewConfigEntries: &[]NewConfigEntry{
+				{
+					Name:  "max.message.bytes",
+					Value: "600000",
+				},
+			},
+			UpdatedConfigEntries: &[]ConfigEntryChanges{
+				{
+					Name:    "cleanup.policy",
+					Current: "compact",
+					Updated: "delete",
+				},
+				{
+					Name:    "retention.ms",
+					Current: "30000000",
+					Updated: "27000000",
+				},
+			},
+			MissingKeys: []string{},
+		},
+	}
+	fmt.Printf("EXPECTED: %#v\n\n", expectedChanges.UpdateChanges.UpdatedConfigEntries)
+	fmt.Printf("ACTUAL: %#v\n\n", changes.UpdateChanges.UpdatedConfigEntries)
+	assert.Equal(t, changes, expectedChanges)
 
 	// Dropped to only 450 because of retention reduction
 	assert.Equal(t, "27000000", topicInfo.Config[admin.RetentionKey])
@@ -122,7 +154,6 @@ func TestApplyBasicUpdates(t *testing.T) {
 
 	_, present := topicInfo.Config["cleanup.policy"]
 	assert.False(t, present)
-
 }
 
 func TestApplyPlacementUpdates(t *testing.T) {
@@ -186,7 +217,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply converts to balanced leaders
-	// TODO: test changes once rebalancing is in ChangesTracker
+	// TODO: test changes once rebalancing is in UpdateChangesTracker
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
 	_, err = applier.Apply(ctx)
 	require.NoError(t, err)
@@ -299,7 +330,7 @@ func TestApplyRebalance(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply rebalances
-	// TODO: test changes once rebalancing is in ChangesTracker
+	// TODO: test changes once rebalancing is in UpdateChangesTracker
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyAny
 	applier.config.Rebalance = true
 	_, err = applier.Apply(ctx)
@@ -379,7 +410,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply extends by 3 partitions with balanced leader strategy
-	// TODO: test changes once partition updates are in ChangesTracker
+	// TODO: test changes once partition updates are in UpdateChangesTracker
 	applier.topicConfig.Spec.Partitions = 6
 	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyBalancedLeaders
 	_, err = applier.Apply(ctx)

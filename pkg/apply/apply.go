@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -124,7 +125,7 @@ func NewTopicApplier(
 //     c. Check partition count and extend if needed
 //     d. Check partition placement and update/migrate if needed
 //     e. Check partition leaders and update if needed
-func (t *TopicApplier) Apply(ctx context.Context) (*ChangesTracker, error) {
+func (t *TopicApplier) Apply(ctx context.Context) (*NewOrUpdatedChanges, error) {
 	log.Info("Validating configs...")
 	brokerRacks := admin.DistinctRacks(t.brokers)
 
@@ -143,16 +144,26 @@ func (t *TopicApplier) Apply(ctx context.Context) (*ChangesTracker, error) {
 
 	topicInfo, err := t.adminClient.GetTopic(ctx, t.topicName, true)
 	if err != nil {
+		// if the topic doesn't exist, create it
 		if err == admin.ErrTopicDoesNotExist {
-			return t.applyNewTopic(ctx)
+			newTopicChanges, err := t.applyNewTopic(ctx)
+			return &NewOrUpdatedChanges{
+				NewChanges:    newTopicChanges,
+				UpdateChanges: nil,
+			}, err
 		}
 		return nil, err
 	}
 
-	return t.applyExistingTopic(ctx, topicInfo)
+	// if the topic does exist, update it
+	updatedTopic, err := t.applyExistingTopic(ctx, topicInfo)
+	return &NewOrUpdatedChanges{
+		NewChanges:    nil,
+		UpdateChanges: updatedTopic,
+	}, err
 }
 
-func (t *TopicApplier) applyNewTopic(ctx context.Context) (*ChangesTracker, error) {
+func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, error) {
 	newTopicConfig, err := t.topicConfig.ToNewTopicConfig()
 	if err != nil {
 		return nil, err
@@ -208,7 +219,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*ChangesTracker, erro
 func (t *TopicApplier) applyExistingTopic(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
-) (*ChangesTracker, error) {
+) (*UpdateChangesTracker, error) {
 	log.Infof("Updating existing topic '%s'", t.topicName)
 
 	if err := t.checkExistingState(ctx, topicInfo); err != nil {
@@ -221,16 +232,16 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
-		return nil, err
+		return changes, err
 	}
 
 	if err := t.updatePartitions(ctx, topicInfo); err != nil {
 		if errors.Is(err, ErrFewerPartitions) && t.config.IgnoreFewerPartitionsError {
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
-			return nil, nil
+			return changes, nil
 		}
 
-		return nil, err
+		return changes, err
 	}
 
 	if err := t.updatePlacement(
@@ -238,14 +249,14 @@ func (t *TopicApplier) applyExistingTopic(
 		t.maxBatchSize,
 		false,
 	); err != nil {
-		return nil, err
+		return changes, err
 	}
 
 	if err := t.updateLeaders(
 		ctx,
 		-1,
 	); err != nil {
-		return nil, err
+		return changes, err
 	}
 
 	if t.config.Rebalance {
@@ -253,14 +264,14 @@ func (t *TopicApplier) applyExistingTopic(
 			ctx,
 			t.maxBatchSize,
 		); err != nil {
-			return nil, err
+			return changes, err
 		}
 
 		if err := t.updateLeaders(
 			ctx,
 			-1,
 		); err != nil {
-			return nil, err
+			return changes, err
 		}
 	}
 
@@ -369,7 +380,7 @@ func (t *TopicApplier) checkExistingState(
 func (t *TopicApplier) updateSettings(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
-) (*ChangesTracker, error) {
+) (*UpdateChangesTracker, error) {
 	log.Infof("Checking topic config settings...")
 
 	topicSettings := t.topicConfig.Spec.Settings.Copy()
@@ -381,6 +392,8 @@ func (t *TopicApplier) updateSettings(
 	if err != nil {
 		return nil, err
 	}
+	// we sort diffKeys to avoid the non-deterministic ordering of ConfigMapDiffs()
+	slices.Sort(diffKeys)
 
 	var retentionDropStepDuration time.Duration
 	if t.config.RetentionDropStepDuration != 0 {
@@ -401,7 +414,7 @@ func (t *TopicApplier) updateSettings(
 		return nil, err
 	}
 
-	var changes *ChangesTracker
+	var changes *UpdateChangesTracker
 	configEntries := []kafka.ConfigEntry{}
 
 	if len(diffKeys) > 0 {
