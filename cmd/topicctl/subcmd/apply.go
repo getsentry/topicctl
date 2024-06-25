@@ -223,14 +223,11 @@ func applyRun(cmd *cobra.Command, args []string) error {
 // unpacks a NewOrUpdatedChanges object into allChanges' NewTopics and UpdatedTopics lists
 func unpackChanges(currentChange *apply.NewOrUpdatedChanges, changeList allChanges) allChanges {
 	if currentChange.NewChanges != nil {
-		// fmt.Printf("new changes: %#v\n\n", currentChange.NewChanges)
 		changeList.NewTopics = append(changeList.NewTopics, *currentChange.NewChanges)
 	}
 	if currentChange.UpdateChanges != nil {
-		// fmt.Printf("updated changes: %#v\n\n", currentChange.UpdateChanges)
 		changeList.UpdatedTopics = append(changeList.UpdatedTopics, *currentChange.UpdateChanges)
 	}
-	// fmt.Printf("changelist: %#v\n\n", changeList)
 	return changeList
 }
 

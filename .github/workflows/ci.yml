@@ -41,7 +41,7 @@ jobs:
     - name: Go setup
       uses: actions/setup-go@v3
       with:
-        go-version: 1.19
+        go-version: 1.22
     - name: Display Go version
       run: go version
     - name: Run tests
@@ -157,7 +157,7 @@ jobs:
     - name: Go setup
       uses: actions/setup-go@v3
       with:
-        go-version: 1.19
+        go-version: 1.22
     - name: Display Go version
       run: go version
     - name: Run tests

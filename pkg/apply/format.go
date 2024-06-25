@@ -140,7 +140,7 @@ func FormatSettingsDiffTracker(
 	}, nil
 }
 
-// processes TopicConfig object from topic creation into a ChangesTracker
+// processes TopicConfig object from topic creation into a NewChangesTracker
 func ProcessTopicConfigIntoChanges(topicName string, topicConfig kafka.TopicConfig) *NewChangesTracker {
 	configEntries := make([]NewConfigEntry, 0)
 	for _, entry := range topicConfig.ConfigEntries {
