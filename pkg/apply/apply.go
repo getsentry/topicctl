@@ -228,10 +228,12 @@ func (t *TopicApplier) applyExistingTopic(
 
 	changes, err := t.updateSettings(ctx, topicInfo)
 	if err != nil {
+		changes.Error = true
 		return nil, err
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
+		changes.Error = true
 		return changes, err
 	}
 
@@ -240,7 +242,7 @@ func (t *TopicApplier) applyExistingTopic(
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
 			return changes, nil
 		}
-
+		changes.Error = true
 		return changes, err
 	}
 
@@ -249,6 +251,7 @@ func (t *TopicApplier) applyExistingTopic(
 		t.maxBatchSize,
 		false,
 	); err != nil {
+		changes.Error = true
 		return changes, err
 	}
 
@@ -256,6 +259,7 @@ func (t *TopicApplier) applyExistingTopic(
 		ctx,
 		-1,
 	); err != nil {
+		changes.Error = true
 		return changes, err
 	}
 
@@ -264,6 +268,7 @@ func (t *TopicApplier) applyExistingTopic(
 			ctx,
 			t.maxBatchSize,
 		); err != nil {
+			changes.Error = true
 			return changes, err
 		}
 
@@ -271,6 +276,7 @@ func (t *TopicApplier) applyExistingTopic(
 			ctx,
 			-1,
 		); err != nil {
+			changes.Error = true
 			return changes, err
 		}
 	}
@@ -418,6 +424,7 @@ func (t *TopicApplier) updateSettings(
 	configEntries := []kafka.ConfigEntry{}
 
 	if len(diffKeys) > 0 {
+		// format diffs as table and log
 		diffsTable, err := FormatSettingsDiff(topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
 			return nil, err
@@ -427,6 +434,7 @@ func (t *TopicApplier) updateSettings(
 			len(diffKeys),
 			diffsTable,
 		)
+		// format diffs as an UpdateChangesTracker for json output
 		changes, err = FormatSettingsDiffTracker(t.topicConfig.Meta.Name, topicSettings, topicInfo.Config, diffKeys)
 		if err != nil {
 			return nil, err

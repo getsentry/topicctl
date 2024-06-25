@@ -131,12 +131,10 @@ func (c *CLIRunner) ApplyTopic(
 	)
 
 	changes, err := applier.Apply(ctx)
-	if err != nil {
-		return changes, err
+	if err == nil {
+		c.printer("Apply completed successfully!")
 	}
-
-	c.printer("Apply completed successfully!")
-	return changes, nil
+	return changes, err
 }
 
 // CreateACL does an apply run according to the spec in the argument config.

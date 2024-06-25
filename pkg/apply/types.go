@@ -77,6 +77,8 @@ type UpdateChangesTracker struct {
 
 	// MissingKeys stores configs which are set in the cluster but not in the topicctl config
 	MissingKeys []string `json:"missingKeys"`
+	// Error stores if an error occurred during topic update
+	Error bool `json:"error"`
 }
 
 // Union of NewChangesTracker and UpdateChangesTracker

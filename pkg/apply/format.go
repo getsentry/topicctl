@@ -137,6 +137,7 @@ func FormatSettingsDiffTracker(
 		UpdatedConfigEntries: &updatedConfigEntries,
 		MissingKeys:          []string{},
 		Action:               ActionEnumUpdate,
+		Error:                false,
 	}, nil
 }
 
