@@ -2,7 +2,6 @@ package apply
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -121,8 +120,6 @@ func TestApplyBasicUpdates(t *testing.T) {
 			MissingKeys: []string{},
 		},
 	}
-	fmt.Printf("EXPECTED: %#v\n\n", expectedChanges.UpdateChanges.UpdatedConfigEntries)
-	fmt.Printf("ACTUAL: %#v\n\n", changes.UpdateChanges.UpdatedConfigEntries)
 	assert.Equal(t, changes, expectedChanges)
 
 	// Dropped to only 450 because of retention reduction
@@ -139,21 +136,27 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// Settings are not deleted if Destructive is false. They are
 	// if it is true
 	delete(applier.topicConfig.Spec.Settings, "cleanup.policy")
-	_, err = applier.Apply(ctx)
+	changes, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
 
+	// assert not deleted
 	assert.Equal(t, "delete", topicInfo.Config["cleanup.policy"])
+	// assert missingKeys field is filled in
+	assert.Equal(t, changes.UpdateChanges.MissingKeys, []string{"cleanup.policy"})
 
 	applier.config.Destructive = true
-	_, err = applier.Apply(ctx)
+	changes, err = applier.Apply(ctx)
 	require.NoError(t, err)
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
 
+	// assert deleted
 	_, present := topicInfo.Config["cleanup.policy"]
 	assert.False(t, present)
+	// assert missingKeys filled in
+	assert.Equal(t, changes.UpdateChanges.MissingKeys, []string{"cleanup.policy"})
 }
 
 func TestApplyPlacementUpdates(t *testing.T) {

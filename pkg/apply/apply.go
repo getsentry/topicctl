@@ -228,7 +228,6 @@ func (t *TopicApplier) applyExistingTopic(
 
 	changes, err := t.updateSettings(ctx, topicInfo)
 	if err != nil {
-		changes.Error = true
 		return nil, err
 	}
 
@@ -458,26 +457,39 @@ func (t *TopicApplier) updateSettings(
 		}
 	}
 
-	if len(missingKeys) > 0 && t.config.Destructive {
-		log.Infof(
-			"Found %d key(s) set in cluster but missing from config to be deleted:\n%s",
-			len(missingKeys),
-			FormatMissingKeys(topicInfo.Config, missingKeys),
-		)
+	if len(missingKeys) > 0 {
+		// add missing keys to UpdateChangesTracker object
+		if changes != nil {
+			changes.MissingKeys = missingKeys
+		} else {
+			changes = &UpdateChangesTracker{
+				Topic:                t.topicName,
+				Action:               ActionEnumUpdate,
+				NewConfigEntries:     nil,
+				UpdatedConfigEntries: nil,
+				MissingKeys:          missingKeys,
+				Error:                false,
+			}
+		}
 
-		configEntries = append(configEntries, topicSettings.ToEmptyConfigEntries(missingKeys)...)
+		if t.config.Destructive {
+			log.Infof(
+				"Found %d key(s) set in cluster but missing from config to be deleted:\n%s",
+				len(missingKeys),
+				FormatMissingKeys(topicInfo.Config, missingKeys),
+			)
+			configEntries = append(configEntries, topicSettings.ToEmptyConfigEntries(missingKeys)...)
+		} else {
+			log.Warnf(
+				"Found %d key(s) set in cluster but missing from config, these will be left as-is:\n%s",
+				len(missingKeys),
+				FormatMissingKeys(topicInfo.Config, missingKeys),
+			)
+		}
 	}
 
 	if len(configEntries) > 0 {
 		if t.config.DryRun {
-			if len(missingKeys) > 0 {
-				log.Warnf(
-					"Found %d key(s) set in cluster but missing from config:\n%s\nThese will be left as-is.",
-					len(missingKeys),
-					FormatMissingKeys(topicInfo.Config, missingKeys),
-				)
-				changes.MissingKeys = missingKeys
-			}
 			log.Infof("Skipping update because dryRun is set to true")
 			return changes, nil
 		}
@@ -500,14 +512,6 @@ func (t *TopicApplier) updateSettings(
 		if err != nil {
 			return nil, err
 		}
-	}
-
-	if len(missingKeys) > 0 && !t.config.Destructive {
-		log.Warnf(
-			"Found %d key(s) set in cluster but missing from config:\n%s\nThese will be left as-is.",
-			len(missingKeys),
-			FormatMissingKeys(topicInfo.Config, missingKeys),
-		)
 	}
 
 	return changes, nil
