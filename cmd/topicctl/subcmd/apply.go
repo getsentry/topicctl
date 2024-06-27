@@ -320,21 +320,17 @@ func applyTopic(
 		if err != nil {
 			// if one of the steps after updateSettings errors when updating a topic,
 			// we can be in a state where some (but not all) changes were applied
-			if topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil {
-				changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
-				log.Error("Error detected while updating topic, the following changes were still made:")
-				partialChanges, err := printChanges(changesToBePrinted)
-				if err != nil {
-					log.Error("Error printing JSON changes data")
-					return err
-				}
-				log.Errorf("%#v", partialChanges)
+			changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
+			log.Error("Error detected while updating topic, the following changes were still made:")
+			partialChanges, err := printChanges(changesToBePrinted)
+			if err != nil {
+				log.Error("Error printing JSON changes data")
+				return err
 			}
+			log.Errorf("%#v", partialChanges)
 			return err
 		}
-		if topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil {
-			changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
-		}
+		changesToBePrinted = unpackChanges(topicChanges, changesToBePrinted)
 	}
 
 	// ensure we're not printing empty json if there's no changes to the topic
