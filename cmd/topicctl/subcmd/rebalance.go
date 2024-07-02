@@ -307,12 +307,14 @@ func rebalanceApplyTopic(
 		AutoContinueRebalance:      true,                      // to continue without prompts
 		RetentionDropStepDuration:  retentionDropStepDuration, // not needed for rebalance
 		SkipConfirm:                true,                      // to enforce action: rebalance
+		Destructive:                false,                     // Irrelevant here
 		SleepLoopDuration:          rebalanceConfig.sleepLoopDuration,
 		TopicConfig:                topicConfig,
 	}
 
 	cliRunner := cli.NewCLIRunner(adminClient, log.Infof, false)
-	if err := cliRunner.ApplyTopic(ctx, applierConfig); err != nil {
+	// TODO: add changes map from rebalancing
+	if _, err := cliRunner.ApplyTopic(ctx, applierConfig); err != nil {
 		return err
 	}
 
