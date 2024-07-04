@@ -659,6 +659,7 @@ func (t *TopicApplier) updatePartitionsHelper(
 	if err != nil {
 		return err
 	}
+	changes.NumPartitions = partitionCountChanges
 
 	topicInfo, err = t.adminClient.GetTopic(ctx, t.topicName, true)
 	if err != nil {
@@ -669,7 +670,6 @@ func (t *TopicApplier) updatePartitionsHelper(
 		"Update complete; new partition status:\n%s",
 		admin.FormatTopicPartitions(topicInfo.Partitions, t.brokers),
 	)
-	changes.NumPartitions = partitionCountChanges
 
 	return nil
 }
