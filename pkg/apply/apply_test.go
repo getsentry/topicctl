@@ -333,11 +333,33 @@ func TestApplyRebalance(t *testing.T) {
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
 	// Next apply rebalances
-	// TODO: test changes once rebalancing is in UpdateChangesTracker
-	applier.topicConfig.Spec.PlacementConfig.Strategy = config.PlacementStrategyAny
+	applier.topicConfig.Spec.PlacementConfig.StaticAssignments = [][]int{
+		{2, 1},
+		{3, 2},
+		{3, 1},
+	}
 	applier.config.Rebalance = true
-	_, err = applier.Apply(ctx)
+	changes, err := applier.Apply(ctx)
 	require.NoError(t, err)
+
+	expectedReplicaAssignments := []ReplicaAssignmentChanges{
+		{
+			Partition:       0,
+			CurrentReplicas: []int{1, 2},
+			UpdatedReplicas: []int{2, 1},
+		},
+		{
+			Partition:       1,
+			CurrentReplicas: []int{2, 3},
+			UpdatedReplicas: []int{3, 2},
+		},
+		{
+			Partition:       2,
+			CurrentReplicas: []int{1, 3},
+			UpdatedReplicas: []int{3, 1},
+		},
+	}
+	assert.Equal(t, *changes.UpdateChanges.ReplicaAssignments, expectedReplicaAssignments)
 
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)

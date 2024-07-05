@@ -203,7 +203,6 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 		return nil, err
 	}
 
-	// TODO: add partition placement updates to ChangesTracker
 	if err := t.updatePlacement(ctx, -1, true, nil); err != nil {
 		return changes, err
 	}
@@ -911,6 +910,12 @@ func (t *TopicApplier) updatePlacementHelper(
 func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	desiredAssignments []admin.PartitionAssignment,
 ) {
+	// when creating a new topic, updatePlacements is called with UpdateChangesTracker == nil
+	if changes == nil {
+		return
+	}
+
+	fmt.Printf("mergeReplicaAssignments changes: %#v", changes)
 	for _, diffAssignment := range desiredAssignments {
 		for i, partition := range *changes.ReplicaAssignments {
 			if partition.Partition == diffAssignment.ID {
