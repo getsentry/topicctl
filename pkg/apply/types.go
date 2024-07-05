@@ -64,10 +64,8 @@ type UpdateChangesTracker struct {
 	// TODO: implement this
 	// ReplicationFactor *IntValueChanges `json:"replicationFactor"`
 
-	// ReplicaAssignments among kafka brokers for this topic partitions. If this
-	// is set num_partitions and replication_factor must be unset.
-	// TODO: implement this
-	// ReplicaAssignments []*ReplicaAssignmentChanges `json:"replicaAssignments"`
+	// tracks changes in replica assignments
+	ReplicaAssignments *[]ReplicaAssignmentChanges `json:"replicaAssignments"`
 
 	// tracks configs being added to the topic
 	NewConfigEntries *[]NewConfigEntry `json:"newConfigEntries"`

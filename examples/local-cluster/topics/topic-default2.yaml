@@ -1,0 +1,17 @@
+meta:
+  name: any
+  cluster: local-cluster
+  environment: local-env
+  region: local-region
+  description: |
+    Topic that uses default (any) strategy for assigning partition brokers.
+
+spec:
+  partitions: 24
+  replicationFactor: 3
+  retentionMinutes: 1009
+  placement:
+    strategy: any
+  settings:
+    cleanup.policy: delete
+    max.message.bytes: 5542880

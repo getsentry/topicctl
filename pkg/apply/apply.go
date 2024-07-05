@@ -204,7 +204,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	}
 
 	// TODO: add partition placement updates to ChangesTracker
-	if err := t.updatePlacement(ctx, -1, true); err != nil {
+	if err := t.updatePlacement(ctx, -1, true, nil); err != nil {
 		return changes, err
 	}
 
@@ -251,10 +251,24 @@ func (t *TopicApplier) applyExistingTopic(
 		return changes, err
 	}
 
+	// record current partition assignments before we start any rebalances
+	assignments := topicInfo.ToAssignments()
+	assignmentChanges := make([]ReplicaAssignmentChanges, 0)
+	for _, assignment := range assignments {
+		assignmentChanges = append(assignmentChanges, ReplicaAssignmentChanges{
+			Partition:       assignment.ID,
+			CurrentReplicas: assignment.Replicas,
+			// initially setting current == updated so we can check if anything changed later on
+			UpdatedReplicas: assignment.Replicas,
+		})
+	}
+	changes.ReplicaAssignments = &assignmentChanges
+
 	if err := t.updatePlacement(
 		ctx,
 		t.maxBatchSize,
 		false,
+		changes,
 	); err != nil {
 		changes.Error = true
 		return changes, err
@@ -272,6 +286,7 @@ func (t *TopicApplier) applyExistingTopic(
 		if err := t.updateBalance(
 			ctx,
 			t.maxBatchSize,
+			changes,
 		); err != nil {
 			changes.Error = true
 			return changes, err
@@ -284,6 +299,17 @@ func (t *TopicApplier) applyExistingTopic(
 			changes.Error = true
 			return changes, err
 		}
+	}
+
+	// if no replica assignments changed, don't report ReplicaAssignments
+	keepReplicaAssignments := false
+	for _, partition := range *changes.ReplicaAssignments {
+		if !reflect.DeepEqual(partition.CurrentReplicas, partition.UpdatedReplicas) {
+			keepReplicaAssignments = true
+		}
+	}
+	if !keepReplicaAssignments {
+		changes.ReplicaAssignments = nil
 	}
 
 	return changes, nil
@@ -666,6 +692,7 @@ func (t *TopicApplier) updatePlacement(
 	ctx context.Context,
 	batchSize int,
 	newTopic bool,
+	changes *UpdateChangesTracker,
 ) error {
 	log.Infof("Checking partition placement...")
 
@@ -720,6 +747,7 @@ func (t *TopicApplier) updatePlacement(
 			desiredPlacement,
 			batchSize,
 			newTopic,
+			changes,
 		)
 	case config.PlacementStrategyInRack, config.PlacementStrategyCrossRack:
 		// If we want in-rack or cross-rack, first check that the leaders are balanced; we don't
@@ -755,6 +783,7 @@ func (t *TopicApplier) updatePlacement(
 			desiredPlacement,
 			batchSize,
 			newTopic,
+			changes,
 		)
 	default:
 		return fmt.Errorf("Cannot update using strategy %s", desiredPlacement)
@@ -764,6 +793,7 @@ func (t *TopicApplier) updatePlacement(
 func (t *TopicApplier) updateBalance(
 	ctx context.Context,
 	batchSize int,
+	changes *UpdateChangesTracker,
 ) error {
 	log.Info("Running rebalance...")
 
@@ -802,6 +832,7 @@ func (t *TopicApplier) updateBalance(
 		desiredAssignments,
 		batchSize,
 		false,
+		changes,
 	)
 }
 
@@ -810,6 +841,7 @@ func (t *TopicApplier) updatePlacementHelper(
 	desiredPlacement config.PlacementStrategy,
 	batchSize int,
 	newTopic bool,
+	changes *UpdateChangesTracker,
 ) error {
 	log.Infof("Trying to get the partitions consistent with '%s'", desiredPlacement)
 
@@ -860,7 +892,20 @@ func (t *TopicApplier) updatePlacementHelper(
 		desiredAssignments,
 		batchSize,
 		newTopic,
+		changes,
 	)
+}
+
+func (changes *UpdateChangesTracker) mergeReplicaAssignments(
+	desiredAssignments []admin.PartitionAssignment,
+) {
+	for _, diffAssignment := range desiredAssignments {
+		for i, partition := range *changes.ReplicaAssignments {
+			if partition.Partition == diffAssignment.ID {
+				(*changes.ReplicaAssignments)[i].UpdatedReplicas = diffAssignment.Replicas
+			}
+		}
+	}
 }
 
 func (t *TopicApplier) updatePlacementRunner(
@@ -869,6 +914,7 @@ func (t *TopicApplier) updatePlacementRunner(
 	desiredAssignments []admin.PartitionAssignment,
 	batchSize int,
 	newTopic bool,
+	changes *UpdateChangesTracker,
 ) error {
 	log.Infof(
 		"Here are the proposed diffs:\n%s",
@@ -976,6 +1022,8 @@ func (t *TopicApplier) updatePlacementRunner(
 			}
 			return err
 		}
+		// add updated replica assignments to changes tracker
+		changes.mergeReplicaAssignments(assignmentsToUpdate[i:end])
 
 		if t.config.AutoContinueRebalance {
 			log.Infof("Autocontinuing to next round")
