@@ -955,6 +955,7 @@ func (t *TopicApplier) updatePlacementRunner(
 
 	if t.config.DryRun {
 		log.Infof("Skipping update because dryRun is set to true")
+		changes.mergeReplicaAssignments(desiredAssignments)
 		return nil
 	}
 
