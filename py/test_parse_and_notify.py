@@ -1,7 +1,14 @@
-import pytest
 import json
-from typing import Sequence, Mapping, Any
-from parse_and_notify import make_markdown_table, NewTopic, UpdatedTopic, TopicctlOutput
+from typing import Sequence
+
+import pytest
+
+from parse_and_notify import (
+    NewTopic,
+    TopicctlOutput,
+    UpdatedTopic,
+    make_markdown_table,
+)
 
 TABLE_TESTS = [
     pytest.param([], [], "%%%\n||\n||\n%%%", id="Empty table"),
@@ -22,7 +29,9 @@ TABLE_TESTS = [
 
 @pytest.mark.parametrize("headers, content, expected", TABLE_TESTS)
 def test_markdown_table(
-    headers: Sequence[str], content: Sequence[Sequence[str | int | None]], expected: str
+    headers: Sequence[str],
+    content: Sequence[Sequence[str | int | None]],
+    expected: str,
 ) -> None:
     assert make_markdown_table(headers, content) == expected
 
@@ -57,7 +66,9 @@ def test_topicctl() -> None:
                 "action": "update",
                 "topic": "topic-default",
                 "numPartitions": None,
-                "newConfigEntries": [{"name": "cleanup.policy", "value": "delete"}],
+                "newConfigEntries": [
+                    {"name": "cleanup.policy", "value": "delete"}
+                ],
                 "updatedConfigEntries": [
                     {
                         "name": "message.timestamp.type",
