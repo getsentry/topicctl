@@ -1,3 +1,4 @@
---index-url https://pypi.devinfra.sentry.io/simple
+# TODO: Enable when the library is in internal pypi
+# --index-url https://pypi.devinfra.sentry.io/simple
 
-sentry-infra-event-notifier==0.0.3
+sentry-infra-event-notifier==0.0.4
