@@ -57,12 +57,7 @@ type UpdateChangesTracker struct {
 	Topic  string     `json:"topic"`
 
 	// tracks changes in partition count
-	// TODO: implement this
-	// NumPartitions *IntValueChanges `json:"numPartitions"`
-
-	// tracks changes in replication factor
-	// TODO: implement this
-	// ReplicationFactor *IntValueChanges `json:"replicationFactor"`
+	NumPartitions *IntValueChanges `json:"numPartitions"`
 
 	// tracks changes in replica assignments
 	ReplicaAssignments *[]ReplicaAssignmentChanges `json:"replicaAssignments"`
