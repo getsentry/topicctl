@@ -138,7 +138,7 @@ def main():
     topics = TopicctlOutput.build(input_data)
 
     token =os.getenv("DATADOG_API_KEY")
-    # assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
+    assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
     notifier = Notifier(datadog_api_key=token)
 
     dry_run = "Dry run: " if topics.dry_run else ""
