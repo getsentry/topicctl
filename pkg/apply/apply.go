@@ -915,7 +915,6 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 		return
 	}
 
-	fmt.Printf("mergeReplicaAssignments changes: %#v", changes)
 	for _, diffAssignment := range desiredAssignments {
 		for i, partition := range *changes.ReplicaAssignments {
 			if partition.Partition == diffAssignment.ID {
