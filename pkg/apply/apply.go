@@ -26,6 +26,103 @@ import (
 
 var ErrFewerPartitions = errors.New("fewer partitions in topic config")
 
+// IntValueChanges stores changes in integer values (NumPartitions & ReplicationFactor)
+// if a topic is being created then Updated == Current
+type IntValueChanges struct {
+	Current int `json:"current"`
+	Updated int `json:"updated"`
+}
+
+// NewConfigEntry holds configs which are being added to a topic
+type NewConfigEntry struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// ConfigEntryChanges holds configs to be updated, as well as their current and updated values
+type ConfigEntryChanges struct {
+	Name    string `json:"name"`
+	Current string `json:"current"`
+	Updated string `json:"updated"`
+}
+
+// ReplicaAssignmentChanges stores replica reassignment
+// if a topic is being created then UpdatedReplicas == CurrentReplicas
+type ReplicaAssignmentChanges struct {
+	Partition       int   `json:"partition"`
+	CurrentReplicas []int `json:"currentReplicas"`
+	UpdatedReplicas []int `json:"updatedReplicas"`
+}
+
+// enum for possible Action values in ChangesTracker
+type ActionEnum string
+
+const (
+	ActionEnumCreate ActionEnum = "create"
+	ActionEnumUpdate ActionEnum = "update"
+)
+
+// NewChangesTracker stores the structure of a topic being created in an apply run
+// to eventually be printed to stdout as a JSON blob in subcmd/apply.go
+type NewChangesTracker struct {
+	// Action records whether this is a topic being created or updated
+	Action            ActionEnum        `json:"action"`
+	Topic             string            `json:"topic"`
+	NumPartitions     int               `json:"numPartitions"`
+	ReplicationFactor int               `json:"replicationFactor"`
+	ConfigEntries     *[]NewConfigEntry `json:"configEntries"`
+}
+
+// UpdateChangesTracker stores the same data as NewChangesTracker,
+// but
+// to eventually be printed to stdout as a JSON blob in subcmd/apply.go
+type UpdateChangesTracker struct {
+	// Action records whether this is a topic being created or updated
+	Action ActionEnum `json:"action"`
+	Topic  string     `json:"topic"`
+
+	// tracks changes in partition count
+	NumPartitions *IntValueChanges `json:"numPartitions"`
+
+	// tracks changes in replica assignments
+	ReplicaAssignments *[]ReplicaAssignmentChanges `json:"replicaAssignments"`
+
+	// tracks configs being added to the topic
+	NewConfigEntries *[]NewConfigEntry `json:"newConfigEntries"`
+
+	// tracks changes in existing config entries
+	UpdatedConfigEntries *[]ConfigEntryChanges `json:"updatedConfigEntries"`
+
+	// MissingKeys stores configs which are set in the cluster but not in the topicctl config
+	MissingKeys []string `json:"missingKeys"`
+	// Error stores if an error occurred during topic update
+	Error bool `json:"error"`
+}
+
+func (changes *UpdateChangesTracker) mergeReplicaAssignments(
+	desiredAssignments []admin.PartitionAssignment,
+) {
+	// when creating a new topic, updatePlacements is called with UpdateChangesTracker == nil
+	if changes == nil {
+		return
+	}
+
+	for _, diffAssignment := range desiredAssignments {
+		for i, partition := range *changes.ReplicaAssignments {
+			if partition.Partition == diffAssignment.ID {
+				(*changes.ReplicaAssignments)[i].UpdatedReplicas = diffAssignment.Replicas
+			}
+		}
+	}
+}
+
+// Union of NewChangesTracker and UpdateChangesTracker
+// used as a return type for the Apply function (which forks into applyNewTopic or applyExistingTopic)
+type NewOrUpdatedChanges struct {
+	NewChanges    *NewChangesTracker
+	UpdateChanges *UpdateChangesTracker
+}
+
 // TopicApplierConfig contains the configuration for a TopicApplier struct.
 type TopicApplierConfig struct {
 	BrokerThrottleMBsOverride  int
@@ -905,23 +1002,6 @@ func (t *TopicApplier) updatePlacementHelper(
 		newTopic,
 		changes,
 	)
-}
-
-func (changes *UpdateChangesTracker) mergeReplicaAssignments(
-	desiredAssignments []admin.PartitionAssignment,
-) {
-	// when creating a new topic, updatePlacements is called with UpdateChangesTracker == nil
-	if changes == nil {
-		return
-	}
-
-	for _, diffAssignment := range desiredAssignments {
-		for i, partition := range *changes.ReplicaAssignments {
-			if partition.Partition == diffAssignment.ID {
-				(*changes.ReplicaAssignments)[i].UpdatedReplicas = diffAssignment.Replicas
-			}
-		}
-	}
 }
 
 func (t *TopicApplier) updatePlacementRunner(
