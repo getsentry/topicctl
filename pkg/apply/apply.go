@@ -125,7 +125,7 @@ func NewTopicApplier(
 //     c. Check partition count and extend if needed
 //     d. Check partition placement and update/migrate if needed
 //     e. Check partition leaders and update if needed
-func (t *TopicApplier) Apply(ctx context.Context) (*NewOrUpdatedChanges, error) {
+func (t *TopicApplier) Apply(ctx context.Context) (*Changes, error) {
 	log.Info("Validating configs...")
 	brokerRacks := admin.DistinctRacks(t.brokers)
 
@@ -147,9 +147,10 @@ func (t *TopicApplier) Apply(ctx context.Context) (*NewOrUpdatedChanges, error) 
 		// if the topic doesn't exist, create it
 		if err == admin.ErrTopicDoesNotExist {
 			newTopicChanges, err := t.applyNewTopic(ctx)
-			return &NewOrUpdatedChanges{
+			return &Changes{
 				NewChanges:    newTopicChanges,
 				UpdateChanges: nil,
+				DryRun: t.config.DryRun,
 			}, err
 		}
 		return nil, err
@@ -157,9 +158,10 @@ func (t *TopicApplier) Apply(ctx context.Context) (*NewOrUpdatedChanges, error) 
 
 	// if the topic does exist, update it
 	updatedTopic, err := t.applyExistingTopic(ctx, topicInfo)
-	return &NewOrUpdatedChanges{
+	return &Changes{
 		NewChanges:    nil,
 		UpdateChanges: updatedTopic,
+		DryRun: t.config.DryRun,
 	}, err
 }
 
@@ -216,6 +218,18 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	return changes, nil
 }
 
+// helper function to check if there are any actual updates on the topic 
+// when returning applyExistingTopic
+func checkForChanges(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker) {
+	if (updateChanges.NumPartitions == nil &&
+		updateChanges.NewConfigEntries == nil &&
+		updateChanges.UpdatedConfigEntries == nil &&
+		len(updateChanges.MissingKeys) == 0) {
+		return nil
+	}
+	return updateChanges
+}
+
 func (t *TopicApplier) applyExistingTopic(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
@@ -238,14 +252,13 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
-		changes.Error = true
-		return changes, err
+		return checkForChanges(changes), err
 	}
 
 	if err := t.updatePartitions(ctx, topicInfo, changes); err != nil {
 		if errors.Is(err, ErrFewerPartitions) && t.config.IgnoreFewerPartitionsError {
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
-			return changes, nil
+			return checkForChanges(changes), nil
 		}
 		changes.Error = true
 		return changes, err
@@ -257,7 +270,7 @@ func (t *TopicApplier) applyExistingTopic(
 		false,
 	); err != nil {
 		changes.Error = true
-		return changes, err
+		return checkForChanges(changes), err
 	}
 
 	if err := t.updateLeaders(
@@ -265,7 +278,7 @@ func (t *TopicApplier) applyExistingTopic(
 		-1,
 	); err != nil {
 		changes.Error = true
-		return changes, err
+		return checkForChanges(changes), err
 	}
 
 	if t.config.Rebalance {
@@ -274,7 +287,7 @@ func (t *TopicApplier) applyExistingTopic(
 			t.maxBatchSize,
 		); err != nil {
 			changes.Error = true
-			return changes, err
+			return checkForChanges(changes), err
 		}
 
 		if err := t.updateLeaders(
@@ -282,11 +295,11 @@ func (t *TopicApplier) applyExistingTopic(
 			-1,
 		); err != nil {
 			changes.Error = true
-			return changes, err
+			return checkForChanges(changes), err
 		}
 	}
 
-	return changes, nil
+	return checkForChanges(changes), nil
 }
 
 func (t *TopicApplier) checkExistingState(

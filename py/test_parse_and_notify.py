@@ -50,7 +50,7 @@ NEW_TOPIC_RENDERED = """%%%
 
 def test_topicctl() -> None:
     content = {
-        "newTopics": [
+        "newTopic": [
             {
                 "topic": "my_topic",
                 "numPartitions": 16,
@@ -61,7 +61,7 @@ def test_topicctl() -> None:
                 ],
             }
         ],
-        "updatedTopics": [
+        "updatedTopic": [
             {
                 "action": "update",
                 "topic": "topic-default",

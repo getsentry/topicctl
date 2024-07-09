@@ -53,8 +53,8 @@ func TestApplyBasicUpdates(t *testing.T) {
 	changes, err := applier.Apply(ctx)
 	require.NoError(t, err)
 
-	// test NewOrUpdatedChanges has expected shape when creating topic
-	expectedChanges := &NewOrUpdatedChanges{
+	// test Changes has expected shape when creating topic
+	expectedChanges := &Changes{
 		NewChanges: &NewChangesTracker{
 			Topic:             topicName,
 			NumPartitions:     9,
@@ -93,8 +93,8 @@ func TestApplyBasicUpdates(t *testing.T) {
 	topicInfo, err = applier.adminClient.GetTopic(ctx, topicName, true)
 	require.NoError(t, err)
 
-	// test NewOrUpdatedChanges has expected shape when updating configs
-	expectedChanges = &NewOrUpdatedChanges{
+	// test Changes has expected shape when updating configs
+	expectedChanges = &Changes{
 		NewChanges: nil,
 		UpdateChanges: &UpdateChangesTracker{
 			Action: "update",

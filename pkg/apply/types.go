@@ -78,7 +78,8 @@ type UpdateChangesTracker struct {
 
 // Union of NewChangesTracker and UpdateChangesTracker
 // used as a return type for the Apply function (which forks into applyNewTopic or applyExistingTopic)
-type NewOrUpdatedChanges struct {
-	NewChanges    *NewChangesTracker
-	UpdateChanges *UpdateChangesTracker
+type Changes struct {
+	NewChanges    *NewChangesTracker    `json:"newTopic"`
+	UpdateChanges *UpdateChangesTracker `json:"updatedTopic"`
+	DryRun        bool                  `json:"dryRun"`
 }
