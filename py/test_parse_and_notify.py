@@ -49,42 +49,46 @@ NEW_TOPIC_RENDERED = """%%%
 
 
 def test_topicctl() -> None:
-    content = {
-        "newTopic": [
-            {
-                "topic": "my_topic",
-                "numPartitions": 16,
-                "replicationFactor": 3,
-                "configEntries": [
-                    {"name": "cleanup.policy", "value": "delete"},
-                    {"name": "max.message.bytes", "value": "5542880"},
-                ],
-            }
-        ],
-        "updatedTopic": [
-            {
-                "action": "update",
-                "topic": "topic-default",
-                "numPartitions": None,
-                "newConfigEntries": [
-                    {"name": "cleanup.policy", "value": "delete"}
-                ],
-                "updatedConfigEntries": [
-                    {
-                        "name": "message.timestamp.type",
-                        "current": "CreateTime",
-                        "updated": "LogAppendTime",
-                    }
-                ],
-                "missingKeys": ["max.message.bytes"],
-                "error": False,
-            }
-        ],
+    new_topic_content = {
+        "newTopic": {
+            "topic": "my_topic",
+            "numPartitions": 16,
+            "replicationFactor": 3,
+            "configEntries": [
+                {"name": "cleanup.policy", "value": "delete"},
+                {"name": "max.message.bytes", "value": "5542880"},
+            ],
+        },
+        "updatedTopic": None,
         "dryRun": False,
     }
-    output = TopicctlOutput.build(json.dumps(content))
-    assert len(output.topics) == 2
-    topic = output.topics[0]
+    updated_topic_content = {
+        "newTopic": None,
+        "updatedTopic": {
+            "action": "update",
+            "topic": "topic-default",
+            "numPartitions": None,
+            "newConfigEntries": [
+                {"name": "cleanup.policy", "value": "delete"}
+            ],
+            "updatedConfigEntries": [
+                {
+                    "name": "message.timestamp.type",
+                    "current": "CreateTime",
+                    "updated": "LogAppendTime",
+                }
+            ],
+            "missingKeys": ["max.message.bytes"],
+            "error": False,
+        },
+        "dryRun": False,
+    }
+
+    new_topic_output = TopicctlOutput.build(json.dumps(new_topic_content))
+    updated_topic_output = TopicctlOutput.build(
+        json.dumps(updated_topic_content)
+    )
+    topic = new_topic_output.topic
     assert isinstance(topic, NewTopic)
     assert topic.change_set == [
         ["Action (create/update)", "create"],
@@ -95,7 +99,7 @@ def test_topicctl() -> None:
     ]
     assert topic.render_table() == NEW_TOPIC_RENDERED
 
-    topic2 = output.topics[1]
+    topic2 = updated_topic_output.topic
     assert isinstance(topic2, UpdatedTopic)
 
     assert topic2.change_set == [

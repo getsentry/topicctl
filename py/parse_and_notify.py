@@ -90,8 +90,12 @@ class UpdatedTopic(Topic):
             ["Action (create/update)", "update", ""],
             [
                 "Partition Count",
-                raw_content["numPartitions"]["current"],
-                raw_content["numPartitions"]["updated"],
+                raw_content["numPartitions"]["current"]
+                if raw_content["numPartitions"]
+                else None,
+                raw_content["numPartitions"]["updated"]
+                if raw_content["numPartitions"]
+                else None,
             ],
             ["Replication Factor", "UNSUPPORTED", "UNSUPPORTED"],
         ]
@@ -134,48 +138,46 @@ class UpdatedTopic(Topic):
 @dataclass(frozen=True)
 class TopicctlOutput:
     dry_run: bool
-    topics: Sequence[Topic]
+    topic: Topic
 
     @classmethod
     def build(cls, raw_content: str) -> TopicctlOutput:
         parsed = json.loads(raw_content)
         return TopicctlOutput(
             dry_run=parsed["dryRun"],
-            topics=[
-                NewTopic.build(parsed["newTopic"])
-                if parsed["newTopic"]
-                else UpdatedTopic.build(parsed["updatedTopic"])
-            ],
+            topic=NewTopic.build(parsed["newTopic"])
+            if parsed["newTopic"]
+            else UpdatedTopic.build(parsed["updatedTopic"]),
         )
 
 
 def main():
-    input_data = sys.stdin.read()
-    topics = TopicctlOutput.build(input_data)
-
     token = os.getenv("DATADOG_API_KEY")
     assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-    notifier = Notifier(datadog_api_key=token)
+    input_data = sys.stdin.readlines()
+    for line in input_data:
+        topic = TopicctlOutput.build(line)
+        topic_content = topic.topic
+        notifier = Notifier(datadog_api_key=token)
 
-    dry_run = "Dry run: " if topics.dry_run else ""
-    tags = {
-        "source": "topicctl",
-        "source_category": "infra_tools",
-        "sentry_region": SENTRY_REGION,
-    }
+        dry_run = "Dry run: " if topic.dry_run else ""
+        tags = {
+            "source": "topicctl",
+            "source_category": "infra_tools",
+            "sentry_region": SENTRY_REGION,
+        }
 
-    for topic in topics.topics:
         title = (
-            f"{dry_run}Topicctl ran apply on topic {topic.name} "
+            f"{dry_run}Topicctl ran apply on topic {topic_content.name} "
             f"in region {SENTRY_REGION}"
         )
-        text = topic.render_table()
+        text = topic_content.render_table()
         if len(text) > 3950:
             text = (
                 "Changes exceed 4000 character limit, "
                 "check topicctl logs for details on changes"
             )
-        tags["topicctl_topic"] = topic.name
+        tags["topicctl_topic"] = topic_content.name
 
         notifier.notify(title=title, tags=tags, text=text, alert_type="")
         print(f"{title}", file=sys.stderr)
