@@ -7,7 +7,6 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from pprint import pprint
 from typing import Any, Mapping, Sequence
 
 from infra_event_notifier.notifier import Notifier
@@ -153,7 +152,6 @@ class TopicctlOutput:
 def main():
     input_data = sys.stdin.read()
     topics = TopicctlOutput.build(input_data)
-    pprint(topics)
 
     token = os.getenv("DATADOG_API_KEY")
     assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
