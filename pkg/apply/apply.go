@@ -118,9 +118,10 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 
 // Union of NewChangesTracker and UpdateChangesTracker
 // used as a return type for the Apply function (which forks into applyNewTopic or applyExistingTopic)
-type NewOrUpdatedChanges struct {
-	NewChanges    *NewChangesTracker
-	UpdateChanges *UpdateChangesTracker
+type Changes struct {
+	NewChanges    *NewChangesTracker    `json:"newTopic"`
+	UpdateChanges *UpdateChangesTracker `json:"updatedTopic"`
+	DryRun        bool                  `json:"dryRun"`
 }
 
 // TopicApplierConfig contains the configuration for a TopicApplier struct.
@@ -320,6 +321,7 @@ func checkForChanges(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker
 	if (updateChanges.NumPartitions == nil &&
 		updateChanges.NewConfigEntries == nil &&
 		updateChanges.UpdatedConfigEntries == nil &&
+		updateChanges.ReplicaAssignments == nil &&
 		len(updateChanges.MissingKeys) == 0) {
 		return nil
 	}
