@@ -127,7 +127,7 @@ class UpdatedTopic(Topic):
             change_set.extend(
                 [
                     [
-                        f"Partition {p["partition"]} assignments",
+                        f"Partition {p['partition']} assignments",
                         str(p["currentReplicas"]),
                         str(p["updatedReplicas"]),
                     ]
