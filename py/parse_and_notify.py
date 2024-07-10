@@ -97,7 +97,6 @@ class UpdatedTopic(Topic):
                 if raw_content["numPartitions"]
                 else None,
             ],
-            ["Replication Factor", "UNSUPPORTED", "UNSUPPORTED"],
         ]
 
         if raw_content["newConfigEntries"]:
@@ -125,6 +124,18 @@ class UpdatedTopic(Topic):
                 [
                     [str(entry), "", "REMOVED"]
                     for entry in raw_content["missingKeys"] or []
+                ]
+            )
+        if raw_content["replicaAssignments"]:
+            assignments = raw_content["replicaAssignments"]
+            change_set.extend(
+                [
+                    [
+                        f"Partition {p['partition']} assignments",
+                        str(p["currentReplicas"]),
+                        str(p["updatedReplicas"]),
+                    ]
+                    for p in assignments
                 ]
             )
 
