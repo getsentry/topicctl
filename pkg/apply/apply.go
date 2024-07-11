@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -73,6 +74,19 @@ type NewChangesTracker struct {
 	ConfigEntries     *[]NewConfigEntry `json:"configEntries"`
 }
 
+func (changes *NewChangesTracker) PrintChanges() (map[string]interface{}, error) {
+	jsonChanges, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	//print json to stdout
+	fmt.Printf("%s\n", jsonChanges)
+	// return unmarshalled map
+	changesMap := make(map[string]interface{})
+	err = json.Unmarshal(jsonChanges, &changesMap)
+	return changesMap, err
+}
+
 // UpdateChangesTracker stores the same data as NewChangesTracker,
 // but
 // to eventually be printed to stdout as a JSON blob in subcmd/apply.go
@@ -116,12 +130,28 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	}
 }
 
-// Union of NewChangesTracker and UpdateChangesTracker
+func (changes *UpdateChangesTracker) PrintChanges() (map[string]interface{}, error) {
+	jsonChanges, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	//print json to stdout
+	fmt.Printf("%s\n", jsonChanges)
+	// return unmarshalled map
+	changesMap := make(map[string]interface{})
+	err = json.Unmarshal(jsonChanges, &changesMap)
+	return changesMap, err
+}
+
+// used as a Union of NewChangesTracker and UpdateChangesTracker
+type NewOrUpdatedChanges interface{
+	PrintChanges() (map[string]interface{}, error)
+}
+
 // used as a return type for the Apply function (which forks into applyNewTopic or applyExistingTopic)
 type Changes struct {
-	NewChanges    *NewChangesTracker    `json:"newTopic"`
-	UpdateChanges *UpdateChangesTracker `json:"updatedTopic"`
-	DryRun        bool                  `json:"dryRun"`
+	Changes       NewOrUpdatedChanges  `json:"changes"`
+	DryRun        bool                 `json:"dryRun"`
 }
 
 // TopicApplierConfig contains the configuration for a TopicApplier struct.
@@ -246,8 +276,7 @@ func (t *TopicApplier) Apply(ctx context.Context) (*Changes, error) {
 		if err == admin.ErrTopicDoesNotExist {
 			newTopicChanges, err := t.applyNewTopic(ctx)
 			return &Changes{
-				NewChanges:    newTopicChanges,
-				UpdateChanges: nil,
+				Changes: newTopicChanges,
 				DryRun: t.config.DryRun,
 			}, err
 		}
@@ -257,8 +286,7 @@ func (t *TopicApplier) Apply(ctx context.Context) (*Changes, error) {
 	// if the topic does exist, update it
 	updatedTopic, err := t.applyExistingTopic(ctx, topicInfo)
 	return &Changes{
-		NewChanges:    nil,
-		UpdateChanges: updatedTopic,
+		Changes: updatedTopic,
 		DryRun: t.config.DryRun,
 	}, err
 }

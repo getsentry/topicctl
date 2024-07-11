@@ -2,7 +2,6 @@ package subcmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -214,21 +213,6 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
-// prints JSON blob of changes being made to stdout
-// returns the JSON blob as a map object
-func printChanges(changes apply.Changes) (map[string]interface{}, error) {
-	jsonChanges, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	//print json to stdout
-	fmt.Printf("%s\n", jsonChanges)
-	// return unmarshalled map
-	changesMap := make(map[string]interface{})
-	err = json.Unmarshal(jsonChanges, &changesMap)
-	return changesMap, err
-}
-
 func applyTopic(
 	ctx context.Context,
 	topicConfigPath string,
@@ -299,9 +283,9 @@ func applyTopic(
 			// if one of the steps after updateSettings errors when updating a topic,
 			// we can be in a state where some (but not all) changes were applied
 			// some topic creation errors also still create the topic
-			if topicChanges != nil && (topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil) {
+			if topicChanges != nil && topicChanges.Changes != nil {
 				log.Error("Error detected while creating or updating a topic, the following changes were still made:")
-				partialChanges, printErr := printChanges(*topicChanges)
+				partialChanges, printErr := topicChanges.Changes.PrintChanges()
 				if printErr != nil {
 					log.Error("Error printing partial JSON changes data")
 				} else {
@@ -311,8 +295,8 @@ func applyTopic(
 			return err
 		}
 		// ensure we're not printing empty json if there's no changes to the topic
-		if applyConfig.jsonOutput && (topicChanges.NewChanges != nil || topicChanges.UpdateChanges != nil) {
-			if _, err := printChanges(*topicChanges); err != nil {
+		if applyConfig.jsonOutput && topicChanges.Changes != nil {
+			if _, err := topicChanges.Changes.PrintChanges(); err != nil {
 				return err
 			}
 		}

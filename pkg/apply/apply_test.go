@@ -55,7 +55,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 
 	// test Changes has expected shape when creating topic
 	expectedChanges := &Changes{
-		NewChanges: &NewChangesTracker{
+		Changes: &NewChangesTracker{
 			Topic:             topicName,
 			NumPartitions:     9,
 			ReplicationFactor: 2,
@@ -71,7 +71,6 @@ func TestApplyBasicUpdates(t *testing.T) {
 			},
 			Action: "create",
 		},
-		UpdateChanges: nil,
 	}
 	assert.Equal(t, changes, expectedChanges)
 
@@ -95,8 +94,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 
 	// test Changes has expected shape when updating configs
 	expectedChanges = &Changes{
-		NewChanges: nil,
-		UpdateChanges: &UpdateChangesTracker{
+		Changes: &UpdateChangesTracker{
 			Action: "update",
 			Topic:  topicName,
 			NewConfigEntries: &[]NewConfigEntry{
@@ -144,7 +142,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// assert not deleted
 	assert.Equal(t, "delete", topicInfo.Config["cleanup.policy"])
 	// assert missingKeys field is filled in
-	assert.Equal(t, changes.UpdateChanges.MissingKeys, []string{"cleanup.policy"})
+	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
 
 	applier.config.Destructive = true
 	changes, err = applier.Apply(ctx)
@@ -156,7 +154,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	_, present := topicInfo.Config["cleanup.policy"]
 	assert.False(t, present)
 	// assert missingKeys filled in
-	assert.Equal(t, changes.UpdateChanges.MissingKeys, []string{"cleanup.policy"})
+	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
 }
 
 func TestApplyPlacementUpdates(t *testing.T) {
@@ -268,7 +266,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 	)
 	assert.True(t, topicInfo.AllLeadersCorrect())
 
-	expectedReplicaAssignments := []ReplicaAssignmentChanges{
+	expectedReplicaAssignments := &[]ReplicaAssignmentChanges{
 		{
 			Partition:       0,
 			CurrentReplicas: []int{5, 2},
@@ -300,7 +298,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 			UpdatedReplicas: []int{3, 4},
 		},
 	}
-	assert.Equal(t, *changes.UpdateChanges.ReplicaAssignments, expectedReplicaAssignments)
+	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).ReplicaAssignments, expectedReplicaAssignments)
 
 	brokers, err := applier.adminClient.GetBrokers(ctx, nil)
 	require.NoError(t, err)
@@ -475,7 +473,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 			Current: 3,
 			Updated: 6,
 		},
-		changes.UpdateChanges.NumPartitions,
+		changes.Changes.(*UpdateChangesTracker).NumPartitions,
 	)
 
 	brokers, err := applier.adminClient.GetBrokers(ctx, nil)
