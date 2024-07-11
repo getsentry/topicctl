@@ -54,9 +54,9 @@ func TestApplyBasicUpdates(t *testing.T) {
 	require.NoError(t, err)
 
 	// test Changes has expected shape when creating topic
-	expectedChanges := &Changes{
-		Changes: &NewChangesTracker{
+	expectedNewChanges := &NewChangesTracker{
 			Topic:             topicName,
+			DryRun:            false,
 			NumPartitions:     9,
 			ReplicationFactor: 2,
 			ConfigEntries: &[]NewConfigEntry{
@@ -70,9 +70,8 @@ func TestApplyBasicUpdates(t *testing.T) {
 				},
 			},
 			Action: "create",
-		},
-	}
-	assert.Equal(t, changes, expectedChanges)
+		}
+		assert.Equal(t, changes, expectedNewChanges)
 
 	// Topic exists and is set up correctly
 	topicInfo, err := applier.adminClient.GetTopic(ctx, topicName, true)
@@ -93,9 +92,9 @@ func TestApplyBasicUpdates(t *testing.T) {
 	require.NoError(t, err)
 
 	// test Changes has expected shape when updating configs
-	expectedChanges = &Changes{
-		Changes: &UpdateChangesTracker{
+	expectedUpdateChanges := &UpdateChangesTracker{
 			Action: "update",
+			DryRun: false,
 			Topic:  topicName,
 			NewConfigEntries: &[]NewConfigEntry{
 				{
@@ -116,9 +115,9 @@ func TestApplyBasicUpdates(t *testing.T) {
 				},
 			},
 			MissingKeys: []string{},
-		},
-	}
-	assert.Equal(t, changes, expectedChanges)
+		}
+	
+	assert.Equal(t, changes, expectedUpdateChanges)
 
 	// Dropped to only 450 because of retention reduction
 	assert.Equal(t, "27000000", topicInfo.Config[admin.RetentionKey])
@@ -142,7 +141,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	// assert not deleted
 	assert.Equal(t, "delete", topicInfo.Config["cleanup.policy"])
 	// assert missingKeys field is filled in
-	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
+	assert.Equal(t, changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
 
 	applier.config.Destructive = true
 	changes, err = applier.Apply(ctx)
@@ -154,7 +153,7 @@ func TestApplyBasicUpdates(t *testing.T) {
 	_, present := topicInfo.Config["cleanup.policy"]
 	assert.False(t, present)
 	// assert missingKeys filled in
-	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
+	assert.Equal(t, changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
 }
 
 func TestApplyNoop(t *testing.T) {
@@ -202,11 +201,7 @@ func TestApplyNoop(t *testing.T) {
 
 	// test Changes is nil after no-op
 	var emptyUpdateChanges *UpdateChangesTracker = nil
-  expectedChanges := &Changes{
-		Changes: emptyUpdateChanges,
-		DryRun: false,
-	}
-	assert.Equal(t, expectedChanges, changes)
+	assert.Equal(t, emptyUpdateChanges, changes)
 }
 
 func TestApplyPlacementUpdates(t *testing.T) {
@@ -350,7 +345,7 @@ func TestApplyPlacementUpdates(t *testing.T) {
 			UpdatedReplicas: []int{3, 4},
 		},
 	}
-	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).ReplicaAssignments, expectedReplicaAssignments)
+	assert.Equal(t, changes.(*UpdateChangesTracker).ReplicaAssignments, expectedReplicaAssignments)
 
 	brokers, err := applier.adminClient.GetBrokers(ctx, nil)
 	require.NoError(t, err)
@@ -525,7 +520,7 @@ func TestApplyExtendPartitions(t *testing.T) {
 			Current: 3,
 			Updated: 6,
 		},
-		changes.Changes.(*UpdateChangesTracker).NumPartitions,
+		changes.(*UpdateChangesTracker).NumPartitions,
 	)
 
 	brokers, err := applier.adminClient.GetBrokers(ctx, nil)

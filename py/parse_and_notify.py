@@ -154,12 +154,16 @@ class TopicctlOutput:
     @classmethod
     def build(cls, raw_content: str) -> TopicctlOutput:
         parsed = json.loads(raw_content)
-        return TopicctlOutput(
-            dry_run=parsed["dryRun"],
-            topic=NewTopic.build(parsed["newTopic"])
-            if parsed["newTopic"]
-            else UpdatedTopic.build(parsed["updatedTopic"]),
-        )
+        action = parsed["action"]
+        if action == "create":
+            topic = NewTopic.build(parsed)
+        elif action == "update":
+            UpdatedTopic.build(parsed)
+        else:
+            raise ValueError(
+                f"action field must be create or update, instead got {action}"
+            )
+        return TopicctlOutput(dry_run=parsed["dryRun"], topic=topic)
 
 
 def main():

@@ -68,18 +68,21 @@ const (
 type NewChangesTracker struct {
 	// Action records whether this is a topic being created or updated
 	Action            ActionEnum        `json:"action"`
+	DryRun            bool              `json:"dryRun"`
 	Topic             string            `json:"topic"`
 	NumPartitions     int               `json:"numPartitions"`
 	ReplicationFactor int               `json:"replicationFactor"`
 	ConfigEntries     *[]NewConfigEntry `json:"configEntries"`
 }
 
-func (changes *NewChangesTracker) PrintChanges() (map[string]interface{}, error) {
+// formats NewChangesTracker as a map object by marshalling and then
+// unmarshalling into JSON
+func (changes *NewChangesTracker) PrintJson() (map[string]interface{}, error) {
 	jsonChanges, err := json.Marshal(changes)
 	if err != nil {
 		return nil, err
 	}
-	//print json to stdout
+	// print json to stdout
 	fmt.Printf("%s\n", jsonChanges)
 	// return unmarshalled map
 	changesMap := make(map[string]interface{})
@@ -87,12 +90,12 @@ func (changes *NewChangesTracker) PrintChanges() (map[string]interface{}, error)
 	return changesMap, err
 }
 
-// UpdateChangesTracker stores the same data as NewChangesTracker,
-// but
+// UpdateChangesTracker stores changes during topic update
 // to eventually be printed to stdout as a JSON blob in subcmd/apply.go
 type UpdateChangesTracker struct {
 	// Action records whether this is a topic being created or updated
 	Action ActionEnum `json:"action"`
+	DryRun bool       `json:"dryRun"`
 	Topic  string     `json:"topic"`
 
 	// tracks changes in partition count
@@ -130,12 +133,14 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	}
 }
 
-func (changes *UpdateChangesTracker) PrintChanges() (map[string]interface{}, error) {
+// formats UpdateChangesTracker as a map object by marshalling and then
+// unmarshalling into JSON
+func (changes *UpdateChangesTracker) PrintJson() (map[string]interface{}, error) {
 	jsonChanges, err := json.Marshal(changes)
 	if err != nil {
 		return nil, err
 	}
-	//print json to stdout
+	// print json to stdout
 	fmt.Printf("%s\n", jsonChanges)
 	// return unmarshalled map
 	changesMap := make(map[string]interface{})
@@ -143,15 +148,9 @@ func (changes *UpdateChangesTracker) PrintChanges() (map[string]interface{}, err
 	return changesMap, err
 }
 
-// used as a Union of NewChangesTracker and UpdateChangesTracker
+// used as a Union type of NewChangesTracker and UpdateChangesTracker
 type NewOrUpdatedChanges interface{
-	PrintChanges() (map[string]interface{}, error)
-}
-
-// used as a return type for the Apply function (which forks into applyNewTopic or applyExistingTopic)
-type Changes struct {
-	Changes       NewOrUpdatedChanges  `json:"changes"`
-	DryRun        bool                 `json:"dryRun"`
+	PrintJson() (map[string]interface{}, error)
 }
 
 // TopicApplierConfig contains the configuration for a TopicApplier struct.
@@ -253,7 +252,7 @@ func NewTopicApplier(
 //     c. Check partition count and extend if needed
 //     d. Check partition placement and update/migrate if needed
 //     e. Check partition leaders and update if needed
-func (t *TopicApplier) Apply(ctx context.Context) (*Changes, error) {
+func (t *TopicApplier) Apply(ctx context.Context) (NewOrUpdatedChanges, error) {
 	log.Info("Validating configs...")
 	brokerRacks := admin.DistinctRacks(t.brokers)
 
@@ -275,20 +274,14 @@ func (t *TopicApplier) Apply(ctx context.Context) (*Changes, error) {
 		// if the topic doesn't exist, create it
 		if err == admin.ErrTopicDoesNotExist {
 			newTopicChanges, err := t.applyNewTopic(ctx)
-			return &Changes{
-				Changes: newTopicChanges,
-				DryRun: t.config.DryRun,
-			}, err
+			return newTopicChanges, err
 		}
 		return nil, err
 	}
 
 	// if the topic does exist, update it
 	updatedTopic, err := t.applyExistingTopic(ctx, topicInfo)
-	return &Changes{
-		Changes: updatedTopic,
-		DryRun: t.config.DryRun,
-	}, err
+	return updatedTopic, err
 }
 
 func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, error) {
@@ -299,7 +292,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 
 	if t.config.DryRun {
 		log.Infof("Would create topic with config %+v", newTopicConfig)
-		changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
+		changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig, t.config.DryRun)
 		return changes, nil
 	}
 
@@ -324,7 +317,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	}
 
 	// add new topic config to changes map
-	changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig)
+	changes := ProcessTopicConfigIntoChanges(t.topicConfig.Meta.Name, newTopicConfig, t.config.DryRun)
 
 	// Just do a short sleep to ensure that zk is updated before we check
 	if err := interruptableSleep(ctx, t.config.SleepLoopDuration/5); err != nil {
@@ -368,6 +361,7 @@ func (t *TopicApplier) applyExistingTopic(
 
 	changes := &UpdateChangesTracker{
 		Action:      ActionEnumUpdate,
+		DryRun:      t.config.DryRun,
 		Topic:       t.topicName,
 		MissingKeys: make([]string, 0),
 		Error:       false,

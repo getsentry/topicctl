@@ -283,9 +283,9 @@ func applyTopic(
 			// if one of the steps after updateSettings errors when updating a topic,
 			// we can be in a state where some (but not all) changes were applied
 			// some topic creation errors also still create the topic
-			if topicChanges != nil && topicChanges.Changes != nil {
+			if topicChanges != nil {
 				log.Error("Error detected while creating or updating a topic, the following changes were still made:")
-				partialChanges, printErr := topicChanges.Changes.PrintChanges()
+				partialChanges, printErr := topicChanges.PrintJson()
 				if printErr != nil {
 					log.Error("Error printing partial JSON changes data")
 				} else {
@@ -295,8 +295,8 @@ func applyTopic(
 			return err
 		}
 		// ensure we're not printing empty json if there's no changes to the topic
-		if applyConfig.jsonOutput && topicChanges.Changes != nil {
-			if _, err := topicChanges.Changes.PrintChanges(); err != nil {
+		if applyConfig.jsonOutput && topicChanges != nil {
+			if _, err := topicChanges.PrintJson(); err != nil {
 				return err
 			}
 		}
