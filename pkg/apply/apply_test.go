@@ -157,6 +157,58 @@ func TestApplyBasicUpdates(t *testing.T) {
 	assert.Equal(t, changes.Changes.(*UpdateChangesTracker).MissingKeys, []string{"cleanup.policy"})
 }
 
+func TestApplyNoop(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	topicName := util.RandomString("apply-topic-", 6)
+	topicConfig := config.TopicConfig{
+		Meta: config.ResourceMeta{
+			Name:        topicName,
+			Cluster:     "test-cluster",
+			Region:      "test-region",
+			Environment: "test-environment",
+		},
+		Spec: config.TopicSpec{
+			Partitions:        9,
+			ReplicationFactor: 2,
+			RetentionMinutes:  500,
+			Settings: config.TopicSettings{
+				"cleanup.policy": "compact",
+			},
+			PlacementConfig: config.TopicPlacementConfig{
+				Strategy: config.PlacementStrategyAny,
+				Picker:   config.PickerMethodLowestIndex,
+			},
+			MigrationConfig: &config.TopicMigrationConfig{
+				ThrottleMB:         2,
+				PartitionBatchSize: 3,
+			},
+		},
+	}
+
+	applier := testApplier(ctx, t, topicConfig)
+	applier.config.RetentionDropStepDuration = 50 * time.Minute
+
+	defer applier.adminClient.Close()
+
+	// initial apply of topic
+	_, err := applier.Apply(ctx)
+	require.NoError(t, err)
+
+	// no-op re-apply of the same topic
+	changes, err := applier.Apply(ctx)
+	require.NoError(t, err)
+
+	// test Changes is nil after no-op
+	var emptyUpdateChanges *UpdateChangesTracker = nil
+  expectedChanges := &Changes{
+		Changes: emptyUpdateChanges,
+		DryRun: false,
+	}
+	assert.Equal(t, expectedChanges, changes)
+}
+
 func TestApplyPlacementUpdates(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Second)
 	defer cancel()
