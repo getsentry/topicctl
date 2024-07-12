@@ -167,15 +167,14 @@ class TopicctlOutput:
 
 
 def main():
-    token = os.getenv("DATADOG_API_KEY")
-    assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-    input_data = sys.stdin.readlines()
-    for line in input_data:
-        topic = TopicctlOutput.build(line)
-        topic_content = topic.topic
+    for line in sys.stdin:
+        topic_content = TopicctlOutput.build(line)
+
+        token = os.getenv("DATADOG_API_KEY")
+        assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
         notifier = Notifier(datadog_api_key=token)
 
-        dry_run = "Dry run: " if topic.dry_run else ""
+        dry_run = "Dry run: " if topic_content.dry_run else ""
         tags = {
             "source": "topicctl",
             "source_category": "infra_tools",
