@@ -2,6 +2,7 @@ package subcmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -213,6 +214,40 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
+// prints changes as JSON to stdout
+func printJson(changes apply.NewOrUpdatedChanges) (map[string]interface{}, error) {
+	jsonChanges, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	// print json to stdout
+	fmt.Printf("%s\n", jsonChanges)
+	// return unmarshalled map
+	changesMap := make(map[string]interface{})
+	err = json.Unmarshal(jsonChanges, &changesMap)
+	return changesMap, err
+}
+
+// checkForChanges returns if a struct implementing NewOrUpdatedChanges is nil
+func checkForChanges(changes apply.NewOrUpdatedChanges) bool {
+	switch changes.(type) {
+	case *apply.NewChangesTracker:
+		if changes.(*apply.NewChangesTracker) != nil {
+			return true
+		} else {
+			return false
+		}
+	case *apply.UpdateChangesTracker:
+		if changes.(*apply.UpdateChangesTracker) != nil {
+			return true
+		} else {
+			return false
+		}
+	default:
+		return false
+	}
+}
+
 func applyTopic(
 	ctx context.Context,
 	topicConfigPath string,
@@ -283,20 +318,22 @@ func applyTopic(
 			// if one of the steps after updateSettings errors when updating a topic,
 			// we can be in a state where some (but not all) changes were applied
 			// some topic creation errors also still create the topic
-			if topicChanges != nil {
-				log.Error("Error detected while creating or updating a topic, the following changes were still made:")
-				partialChanges, printErr := topicChanges.PrintJson()
+			log.Error("Error detected while creating or updating a topic")
+			if checkForChanges(topicChanges) {
+				log.Error("The following changes were still made:")
+				partialChanges, printErr := printJson(topicChanges)
 				if printErr != nil {
-					log.Error("Error printing partial JSON changes data")
+					log.Error("Error printing JSON changes data")
 				} else {
 					log.Errorf("%#v", partialChanges)
 				}
 			}
 			return err
 		}
+
 		// ensure we're not printing empty json if there's no changes to the topic
-		if applyConfig.jsonOutput && topicChanges != nil {
-			if _, err := topicChanges.PrintJson(); err != nil {
+		if checkForChanges(topicChanges) {
+			if _, err := printJson(topicChanges); err != nil {
 				return err
 			}
 		}

@@ -2,7 +2,6 @@ package apply
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -75,21 +74,6 @@ type NewChangesTracker struct {
 	ConfigEntries     *[]NewConfigEntry `json:"configEntries"`
 }
 
-// formats NewChangesTracker as a map object by marshalling and then
-// unmarshalling into JSON
-func (changes *NewChangesTracker) PrintJson() (map[string]interface{}, error) {
-	jsonChanges, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	// print json to stdout
-	fmt.Printf("%s\n", jsonChanges)
-	// return unmarshalled map
-	changesMap := make(map[string]interface{})
-	err = json.Unmarshal(jsonChanges, &changesMap)
-	return changesMap, err
-}
-
 // UpdateChangesTracker stores changes during topic update
 // to eventually be printed to stdout as a JSON blob in subcmd/apply.go
 type UpdateChangesTracker struct {
@@ -133,25 +117,8 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	}
 }
 
-// formats UpdateChangesTracker as a map object by marshalling and then
-// unmarshalling into JSON
-func (changes *UpdateChangesTracker) PrintJson() (map[string]interface{}, error) {
-	jsonChanges, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	// print json to stdout
-	fmt.Printf("%s\n", jsonChanges)
-	// return unmarshalled map
-	changesMap := make(map[string]interface{})
-	err = json.Unmarshal(jsonChanges, &changesMap)
-	return changesMap, err
-}
-
 // used as a Union type of NewChangesTracker and UpdateChangesTracker
-type NewOrUpdatedChanges interface{
-	PrintJson() (map[string]interface{}, error)
-}
+type NewOrUpdatedChanges interface{}
 
 // TopicApplierConfig contains the configuration for a TopicApplier struct.
 type TopicApplierConfig struct {
@@ -338,7 +305,7 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 
 // helper function to check if there are any actual updates on the topic 
 // when returning applyExistingTopic
-func checkForChanges(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker) {
+func checkForUpdates(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker) {
 	if (updateChanges.NumPartitions == nil &&
 		updateChanges.NewConfigEntries == nil &&
 		updateChanges.UpdatedConfigEntries == nil &&
@@ -372,16 +339,16 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
-		return checkForChanges(changes), err
+		return checkForUpdates(changes), err
 	}
 
 	if err := t.updatePartitions(ctx, topicInfo, changes); err != nil {
 		if errors.Is(err, ErrFewerPartitions) && t.config.IgnoreFewerPartitionsError {
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
-			return checkForChanges(changes), nil
+			return checkForUpdates(changes), nil
 		}
 		changes.Error = true
-		return changes, err
+		return checkForUpdates(changes), err
 	}
 
 	// record current partition assignments before we start any rebalances
@@ -404,7 +371,7 @@ func (t *TopicApplier) applyExistingTopic(
 		changes,
 	); err != nil {
 		changes.Error = true
-		return checkForChanges(changes), err
+		return checkForUpdates(changes), err
 	}
 
 	if err := t.updateLeaders(
@@ -412,7 +379,7 @@ func (t *TopicApplier) applyExistingTopic(
 		-1,
 	); err != nil {
 		changes.Error = true
-		return checkForChanges(changes), err
+		return checkForUpdates(changes), err
 	}
 
 	if t.config.Rebalance {
@@ -422,7 +389,7 @@ func (t *TopicApplier) applyExistingTopic(
 			changes,
 		); err != nil {
 			changes.Error = true
-			return checkForChanges(changes), err
+			return checkForUpdates(changes), err
 		}
 
 		if err := t.updateLeaders(
@@ -430,7 +397,7 @@ func (t *TopicApplier) applyExistingTopic(
 			-1,
 		); err != nil {
 			changes.Error = true
-			return checkForChanges(changes), err
+			return checkForUpdates(changes), err
 		}
 	}
 
@@ -445,7 +412,7 @@ func (t *TopicApplier) applyExistingTopic(
 		changes.ReplicaAssignments = nil
 	}
 
-	return checkForChanges(changes), nil
+	return checkForUpdates(changes), nil
 }
 
 func (t *TopicApplier) checkExistingState(
