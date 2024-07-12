@@ -48,7 +48,9 @@ class Topic(ABC):
 @dataclass(frozen=True)
 class NewTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
+    dry_run: bool
     error: bool
+    name: str
 
     def render_table(self) -> str:
         return make_markdown_table(
@@ -60,6 +62,7 @@ class NewTopic(Topic):
     def build(cls, raw_content: Mapping[str, Any]) -> NewTopic:
         return NewTopic(
             name=raw_content["topic"],
+            dry_run=raw_content["dryRun"],
             error=False,
             change_set=[
                 ["Action (create/update)", "create"],
@@ -76,7 +79,9 @@ class NewTopic(Topic):
 @dataclass(frozen=True)
 class UpdatedTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
+    dry_run: bool
     error: bool
+    name: str
 
     def render_table(self) -> str:
         return make_markdown_table(
@@ -141,46 +146,33 @@ class UpdatedTopic(Topic):
 
         return UpdatedTopic(
             name=raw_content["topic"],
+            dry_run=raw_content["dryRun"],
             error=raw_content["error"],
             change_set=change_set,
         )
 
 
-@dataclass(frozen=True)
-class TopicctlOutput:
-    dry_run: bool
-    topic: Topic
-
-    @classmethod
-    def build(cls, raw_content: str) -> TopicctlOutput:
-        parsed = json.loads(raw_content)
-        action = parsed["action"]
-        if action == "create":
-            topic = NewTopic.build(parsed)
-        elif action == "update":
-            UpdatedTopic.build(parsed)
-        else:
-            raise ValueError(
-                f"action field must be create or update, instead got {action}"
-            )
-        return TopicctlOutput(dry_run=parsed["dryRun"], topic=topic)
-
-
 def main():
+    token = os.getenv("DATADOG_API_KEY")
+    assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
+    notifier = Notifier(datadog_api_key=token)
+
     for line in sys.stdin:
-        topic_content = TopicctlOutput.build(line)
+        topic = json.loads(line)
+        action = topic["action"]
+        topic_content = (
+            NewTopic.build(topic)
+            if action == "create"
+            else UpdatedTopic.build(topic)
+        )
 
-        token = os.getenv("DATADOG_API_KEY")
-        assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-        notifier = Notifier(datadog_api_key=token)
-
-        dry_run = "Dry run: " if topic_content.dry_run else ""
         tags = {
             "source": "topicctl",
             "source_category": "infra_tools",
             "sentry_region": SENTRY_REGION,
         }
 
+        dry_run = "Dry run: " if topic_content.dry_run else ""
         title = (
             f"{dry_run}Topicctl ran apply on topic {topic_content.name} "
             f"in region {SENTRY_REGION}"
