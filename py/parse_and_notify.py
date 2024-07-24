@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from infra_event_notifier.notifier import Notifier
+from infra_event_notifier.jira_notifier import JiraNotifier
 
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
@@ -153,9 +153,25 @@ class UpdatedTopic(Topic):
 
 
 def main():
-    token = os.getenv("DATADOG_API_KEY")
-    assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-    notifier = Notifier(datadog_api_key=token)
+    api_key = os.getenv("JIRA_API_KEY")
+    assert api_key is not None, "No Jira API token in JIRA_API_KEY env var"
+    proj_id = os.getenv("JIRA_PROJECT_ID")
+    assert proj_id is not None, "No Jira Project ID in JIRA_PROJECT_ID env var"
+    api_url = os.getenv("JIRA_API_URL")
+    assert api_url is not None, "No Jira API URL in JIRA_API_URL env var"
+    user_email = os.getenv("JIRA_USER_EMAIL")
+    assert (
+        user_email is not None
+    ), "No Jira user email in JIRA_USER_EMAIL env var"
+
+    notifier = JiraNotifier(
+        "",
+        "",
+        jira_api_key=api_key,
+        jira_project=proj_id,  # Must be the id of the project, not the name
+        jira_url=api_url,
+        jira_user_email=user_email,
+    )
 
     for line in sys.stdin:
         topic = json.loads(line)
@@ -184,8 +200,12 @@ def main():
                 "check topicctl logs for details on changes"
             )
         tags["topicctl_topic"] = topic_content.name
-
-        notifier.notify(title=title, tags=tags, text=text, alert_type="")
+        notifier.set_title(title)
+        notifier.set_body(text)
+        notifier.set_tags(tags)
+        notifier.set_issue_type("Task")
+        notifier.set_update_text_body(True)
+        notifier.send()
         print(f"{title}", file=sys.stderr)
 
 
