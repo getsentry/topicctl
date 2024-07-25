@@ -165,8 +165,6 @@ def main():
     ), "No Jira user email in JIRA_USER_EMAIL env var"
 
     notifier = JiraNotifier(
-        "",
-        "",
         jira_api_key=api_key,
         jira_project=proj_id,  # Must be the id of the project, not the name
         jira_url=api_url,
@@ -200,12 +198,9 @@ def main():
                 "check topicctl logs for details on changes"
             )
         tags["topicctl_topic"] = topic_content.name
-        notifier.set_title(title)
-        notifier.set_body(text)
-        notifier.set_tags(tags)
-        notifier.set_issue_type("Task")
-        notifier.set_update_text_body(True)
-        notifier.send()
+        notifier.send(
+            title, text, tags, issue_type="Task", update_text_body=True
+        )
         print(f"{title}", file=sys.stderr)
 
 
