@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from infra_event_notifier.backends.jira import IssueType
 from infra_event_notifier.jira_notifier import JiraNotifier
 
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
@@ -198,9 +199,7 @@ def main():
                 "check topicctl logs for details on changes"
             )
         tags["topicctl_topic"] = topic_content.name
-        notifier.send(
-            title, text, tags, issue_type="Task", update_text_body=True
-        )
+        notifier.send(title, text, IssueType.TASK, tags, update_text_body=True)
         print(f"{title}", file=sys.stderr)
 
 
