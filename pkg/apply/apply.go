@@ -72,6 +72,9 @@ type NewChangesTracker struct {
 	NumPartitions     int               `json:"numPartitions"`
 	ReplicationFactor int               `json:"replicationFactor"`
 	ConfigEntries     *[]NewConfigEntry `json:"configEntries"`
+	// Error stores if an error occurred during topic update
+	Error bool          `json:"error"`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 // UpdateChangesTracker stores changes during topic update
@@ -97,7 +100,8 @@ type UpdateChangesTracker struct {
 	// MissingKeys stores configs which are set in the cluster but not in the topicctl config
 	MissingKeys []string `json:"missingKeys"`
 	// Error stores if an error occurred during topic update
-	Error bool `json:"error"`
+	Error bool          `json:"error"`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func (changes *UpdateChangesTracker) mergeReplicaAssignments(
@@ -292,11 +296,14 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	}
 
 	if err := t.updatePlacement(ctx, -1, true, nil); err != nil {
+		changes.Error = true
+    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
-	// TODO: add leader elections to ChangesTracker
 	if err := t.updateLeaders(ctx, -1); err != nil {
+		changes.Error = true
+    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
@@ -313,6 +320,7 @@ func checkForUpdates(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker
 		len(updateChanges.MissingKeys) == 0) {
 		return nil
 	}
+	
 	return updateChanges
 }
 
@@ -327,11 +335,11 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	changes := &UpdateChangesTracker{
-		Action:      ActionEnumUpdate,
-		DryRun:      t.config.DryRun,
-		Topic:       t.topicName,
-		MissingKeys: make([]string, 0),
-		Error:       false,
+		Action:       ActionEnumUpdate,
+		DryRun:       t.config.DryRun,
+		Topic:        t.topicName,
+		MissingKeys:  make([]string, 0),
+		Error:        false,
 	}
 
 	if err := t.updateSettings(ctx, topicInfo, changes); err != nil {
@@ -348,6 +356,7 @@ func (t *TopicApplier) applyExistingTopic(
 			return checkForUpdates(changes), nil
 		}
 		changes.Error = true
+    changes.ErrorMessage = err.Error()
 		return checkForUpdates(changes), err
 	}
 
@@ -371,6 +380,7 @@ func (t *TopicApplier) applyExistingTopic(
 		changes,
 	); err != nil {
 		changes.Error = true
+    changes.ErrorMessage = err.Error()
 		return checkForUpdates(changes), err
 	}
 
@@ -379,6 +389,7 @@ func (t *TopicApplier) applyExistingTopic(
 		-1,
 	); err != nil {
 		changes.Error = true
+    changes.ErrorMessage = err.Error()
 		return checkForUpdates(changes), err
 	}
 
@@ -389,6 +400,7 @@ func (t *TopicApplier) applyExistingTopic(
 			changes,
 		); err != nil {
 			changes.Error = true
+			changes.ErrorMessage = err.Error()
 			return checkForUpdates(changes), err
 		}
 
@@ -397,6 +409,7 @@ func (t *TopicApplier) applyExistingTopic(
 			-1,
 		); err != nil {
 			changes.Error = true
+			changes.ErrorMessage = err.Error()
 			return checkForUpdates(changes), err
 		}
 	}

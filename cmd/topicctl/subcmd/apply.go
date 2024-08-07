@@ -315,18 +315,16 @@ func applyTopic(
 		}
 		topicChanges, err := cliRunner.ApplyTopic(ctx, applierConfig)
 		if err != nil {
-			// if one of the steps after updateSettings errors when updating a topic,
-			// we can be in a state where some (but not all) changes were applied
-			// some topic creation errors also still create the topic
+			// If one of the steps after updateSettings errors when updating a topic,
+			// we can be in a state where some (but not all) changes were applied.
+			// Some topic creation errors also still create the topic
 			log.Error("Error detected while creating or updating a topic")
-			if checkForChanges(topicChanges) {
-				log.Error("The following changes were still made:")
-				partialChanges, printErr := printJson(topicChanges)
-				if printErr != nil {
-					log.Error("Error printing JSON changes data")
-				} else {
-					log.Errorf("%#v", partialChanges)
-				}
+			log.Error("The following changes were still made:")
+			partialChanges, printErr := printJson(topicChanges)
+			if printErr != nil {
+				log.Error("Error printing JSON changes data")
+			} else {
+				log.Errorf("%#v", partialChanges)
 			}
 			return err
 		}
