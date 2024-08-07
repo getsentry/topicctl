@@ -310,20 +310,6 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	return changes, nil
 }
 
-// helper function to check if there are any actual updates on the topic 
-// when returning applyExistingTopic
-func checkForUpdates(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker) {
-	if (updateChanges.NumPartitions == nil &&
-		updateChanges.NewConfigEntries == nil &&
-		updateChanges.UpdatedConfigEntries == nil &&
-		updateChanges.ReplicaAssignments == nil &&
-		len(updateChanges.MissingKeys) == 0) {
-		return nil
-	}
-	
-	return updateChanges
-}
-
 func (t *TopicApplier) applyExistingTopic(
 	ctx context.Context,
 	topicInfo admin.TopicInfo,
@@ -347,17 +333,17 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
-		return checkForUpdates(changes), err
+		return changes, err
 	}
 
 	if err := t.updatePartitions(ctx, topicInfo, changes); err != nil {
 		if errors.Is(err, ErrFewerPartitions) && t.config.IgnoreFewerPartitionsError {
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
-			return checkForUpdates(changes), nil
+			return changes, nil
 		}
 		changes.Error = true
     changes.ErrorMessage = err.Error()
-		return checkForUpdates(changes), err
+		return changes, err
 	}
 
 	// record current partition assignments before we start any rebalances
@@ -381,7 +367,7 @@ func (t *TopicApplier) applyExistingTopic(
 	); err != nil {
 		changes.Error = true
     changes.ErrorMessage = err.Error()
-		return checkForUpdates(changes), err
+		return changes, err
 	}
 
 	if err := t.updateLeaders(
@@ -390,7 +376,7 @@ func (t *TopicApplier) applyExistingTopic(
 	); err != nil {
 		changes.Error = true
     changes.ErrorMessage = err.Error()
-		return checkForUpdates(changes), err
+		return changes, err
 	}
 
 	if t.config.Rebalance {
@@ -401,7 +387,7 @@ func (t *TopicApplier) applyExistingTopic(
 		); err != nil {
 			changes.Error = true
 			changes.ErrorMessage = err.Error()
-			return checkForUpdates(changes), err
+			return changes, err
 		}
 
 		if err := t.updateLeaders(
@@ -410,22 +396,11 @@ func (t *TopicApplier) applyExistingTopic(
 		); err != nil {
 			changes.Error = true
 			changes.ErrorMessage = err.Error()
-			return checkForUpdates(changes), err
+			return changes, err
 		}
 	}
 
-	// if no replica assignments changed, don't report ReplicaAssignments
-	keepReplicaAssignments := false
-	for _, partition := range *changes.ReplicaAssignments {
-		if !reflect.DeepEqual(partition.CurrentReplicas, partition.UpdatedReplicas) {
-			keepReplicaAssignments = true
-		}
-	}
-	if !keepReplicaAssignments {
-		changes.ReplicaAssignments = nil
-	}
-
-	return checkForUpdates(changes), nil
+	return changes, nil
 }
 
 func (t *TopicApplier) checkExistingState(

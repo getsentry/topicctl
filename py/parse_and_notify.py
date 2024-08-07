@@ -15,7 +15,10 @@ SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
 
 def make_markdown_table(
-    headers: Sequence[str], content: Sequence[Sequence[str | int | None]]
+    headers: Sequence[str],
+    content: Sequence[Sequence[str | int | None]],
+    error: bool,
+    error_message: str | None,
 ) -> str:
     """
     Creates a markdown table given a sequence of Sequences of cells.
@@ -32,6 +35,13 @@ def make_markdown_table(
     line = "-" * len(headers)
     rows = [make_row(r) for r in content]
     table = f"{make_row(headers)}{make_row(line)}{''.join(rows)}"
+
+    if error:
+        table = (
+            "# ERROR - the following error occurred while processing this topic:\n"  # noqa
+            f"{error_message}\n\n"
+            "# The following changes were still made:\n"
+        ) + table
 
     return f"%%%\n{table}%%%"
 
@@ -50,29 +60,38 @@ class NewTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
     dry_run: bool
     error: bool
+    error_message: str | None
     name: str
 
     def render_table(self) -> str:
         return make_markdown_table(
             headers=["Parameter", "Value"],
             content=[["Topic Name", self.name], *self.change_set],
+            error=self.error,
+            error_message=self.error_message,
         )
 
     @classmethod
     def build(cls, raw_content: Mapping[str, Any]) -> NewTopic:
+        change_set = [["Action (create/update)", "create"]]
+        if raw_content["numPartitions"]:
+            change_set.extend(
+                [["Partition Count", raw_content["numPartitions"]]]
+            )
+        if raw_content["replicationFactor"]:
+            change_set.extend(
+                [["Replication Factor", raw_content["replicationFactor"]]]
+            )
+        change_set += [
+            [str(entry["name"]), str(entry["value"])]
+            for entry in raw_content["configEntries"]
+        ]
         return NewTopic(
             name=raw_content["topic"],
             dry_run=raw_content["dryRun"],
-            error=False,
-            change_set=[
-                ["Action (create/update)", "create"],
-                ["Partition Count", raw_content["numPartitions"]],
-                ["Replication Factor", raw_content["replicationFactor"]],
-            ]
-            + [
-                [str(entry["name"]), str(entry["value"])]
-                for entry in raw_content["configEntries"]
-            ],
+            error=raw_content["error"],
+            error_message=raw_content["errorMessage"],
+            change_set=change_set,
         )
 
 
@@ -81,28 +100,35 @@ class UpdatedTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
     dry_run: bool
     error: bool
+    error_message: str | None
     name: str
 
     def render_table(self) -> str:
         return make_markdown_table(
             headers=["Parameter", "Old Value", "New Value"],
             content=self.change_set,
+            error=self.error,
+            error_message=self.error_message,
         )
 
     @classmethod
     def build(cls, raw_content: Mapping[str, Any]) -> UpdatedTopic:
-        change_set = [
-            ["Action (create/update)", "update", ""],
-            [
-                "Partition Count",
-                raw_content["numPartitions"]["current"]
-                if raw_content["numPartitions"]
-                else None,
-                raw_content["numPartitions"]["updated"]
-                if raw_content["numPartitions"]
-                else None,
-            ],
-        ]
+        change_set = [["Action (create/update)", "update", ""]]
+
+        if (
+            raw_content["numPartitions"]
+            and raw_content["numPartitions"]["current"]
+            and raw_content["numPartitions"]["updated"]
+        ):
+            change_set.extend(
+                [
+                    [
+                        "Partition Count",
+                        raw_content["numPartitions"]["current"],
+                        raw_content["numPartitions"]["updated"],
+                    ]
+                ]
+            )
 
         if raw_content["newConfigEntries"]:
             change_set.extend(
@@ -148,6 +174,7 @@ class UpdatedTopic(Topic):
             name=raw_content["topic"],
             dry_run=raw_content["dryRun"],
             error=raw_content["error"],
+            error_message=raw_content["errorMessage"],
             change_set=change_set,
         )
 
