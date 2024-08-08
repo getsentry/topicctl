@@ -4,7 +4,23 @@ import pytest
 
 from parse_and_notify import NewTopic, UpdatedTopic, make_markdown_table
 
-TABLE_TESTS = [
+DD_TABLE_TESTS = [
+    pytest.param([], [], "%%%\n||\n||\n%%%", id="Empty table"),
+    pytest.param(
+        ["col1", "col2"],
+        [],
+        "%%%\n|col1|col2|\n|-|-|\n%%%",
+        id="Table with header",
+    ),
+    pytest.param(
+        ["col1", "col2"],
+        [["val1", "val2"], ["val3", "val4"]],
+        "%%%\n|col1|col2|\n|-|-|\n|val1|val2|\n|val3|val4|\n%%%",
+        id="Table with header and rows",
+    ),
+]
+
+SLACK_TABLE_TESTS = [
     pytest.param([], [], "%%%\n||\n||\n%%%", id="Empty table"),
     pytest.param(
         ["col1", "col2"],
@@ -21,8 +37,17 @@ TABLE_TESTS = [
 ]
 
 
-@pytest.mark.parametrize("headers, content, expected", TABLE_TESTS)
+@pytest.mark.parametrize("headers, content, expected", DD_TABLE_TESTS)
 def test_markdown_table(
+    headers: Sequence[str],
+    content: Sequence[Sequence[str | int | None]],
+    expected: str,
+) -> None:
+    assert make_markdown_table(headers, content, False, None) == expected
+
+
+@pytest.mark.parametrize("headers, content, expected", SLACK_TABLE_TESTS)
+def test_slack_table(
     headers: Sequence[str],
     content: Sequence[Sequence[str | int | None]],
     expected: str,

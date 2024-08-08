@@ -9,7 +9,10 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from infra_event_notifier.notifier import Notifier
+from infra_event_notifier.datadog_notifier import (
+    DatadogNotifier,
+    SlackNotifier,
+)
 
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
@@ -52,6 +55,64 @@ def make_markdown_table(
             table = error_header + "# No changes were made."
 
     return f"%%%\n{table}%%%"
+
+
+def make_slack_message(
+    headers: Sequence[str],
+    content: Sequence[Sequence[str | int | None]],
+    error: bool,
+    error_message: str | None,
+) -> str:
+    """
+    Formats an ASCII table for slack message since slack's
+    markdown support is lacking
+    """
+
+    def make_row(
+        row: Sequence[str | int | None], max_len: Sequence[int]
+    ) -> str:
+        content = "|".join(
+            (
+                " " + str(col).ljust(max_len[i]) + " "
+                for i, col in enumerate(row)
+            )
+        )
+        return f"|{content}|\n"
+
+    assert all(
+        len(row) == len(headers) for row in content
+    ), "Invalid table format."
+    # get max length of columns
+    num_cols = len(headers)
+    max_len = [len(h) for h in headers]
+    for i in range(num_cols):
+        for row in content:
+            max_len[i] = max(max_len[i], len(str(row[i])))
+    # 2 * len(headers) to account for the whitespace added in each row
+    line = ["-" * (sum(max_len) + 2 * len(headers))]
+    rows = [make_row(r, max_len) for r in content]
+    table = (
+        f"```{make_row(headers, max_len)}"
+        + f"{make_row(line, max_len)}"
+        + f"{''.join(rows)}```"
+    )
+
+    if error:
+        error_header = (
+            "*ERROR - the following error occurred while processing this topic:*\n"  # noqa
+            f"{error_message}\n\n"
+        )
+        # if changes were still made before an error, report them
+        if len(content) > 1:
+            table = (
+                error_header
+                + "*The following changes were still made:*\n\n"
+                + table
+            )
+        else:
+            table = error_header + "*No changes were made.*"
+
+    return f"{table}"
 
 
 @dataclass(frozen=True)
@@ -193,9 +254,17 @@ class UpdatedTopic(Topic):
 
 
 def main():
-    token = os.getenv("DATADOG_API_KEY")
-    assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-    notifier = Notifier(datadog_api_key=token)
+    dd_token = os.getenv("DATADOG_API_KEY")
+    slack_secret = os.getenv("KAFKA_CONTROL_PLANE_WEBHOOK_SECRET")
+    slack_url = os.getenv("ENG_PIPES_URL")
+    assert dd_token is not None, "No Datadog token in DATADOG_API_KEY env var"
+    assert (
+        slack_secret is not None
+    ), "No HMAC secret in KAFKA_CONTROL_PLANE_WEBHOOK_SECRET env var"
+    dd_notifier = DatadogNotifier(datadog_api_key=dd_token)
+    slack_notifier = SlackNotifier(
+        eng_pipes_key=slack_secret, eng_pipes_url=slack_url
+    )
 
     for line in sys.stdin:
         topic = json.loads(line)
@@ -217,15 +286,18 @@ def main():
             f"{dry_run}Topicctl ran apply on topic {topic_content.name} "
             f"in region {SENTRY_REGION}"
         )
-        text = topic_content.render_table()
-        if len(text) > 3950:
-            text = (
-                "Changes exceed 4000 character limit, "
+        dd_table = topic_content.render_table()
+        slack_table = topic_content.render_slack_msg()
+        if len(dd_table) > 3950 or len(slack_table) > 2950:
+            dd_table = (
+                "Changes exceed character limit, "
                 "check topicctl logs for details on changes"
             )
+            slack_table = dd_table
         tags["topicctl_topic"] = topic_content.name
 
-        notifier.notify(title=title, tags=tags, text=text, alert_type="")
+        dd_notifier.send(title=title, body=dd_table, tags=tags, alert_type="")
+        slack_notifier.send(title=title, body=slack_table)
         print(f"{title}", file=sys.stderr)
 
 
