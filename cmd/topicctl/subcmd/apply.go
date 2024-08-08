@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"reflect"
 	"syscall"
 	"time"
 
@@ -215,58 +214,17 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
-// check if ReplicaAssignments in an UpdateChangesTracker actually changed
-func validateReplicaChanges(changes *apply.UpdateChangesTracker) *apply.UpdateChangesTracker {
-	replicaAssignments := *changes.ReplicaAssignments
-	keepReplicaAssignments := false
-	for _, partition := range replicaAssignments {
-		if !reflect.DeepEqual(partition.CurrentReplicas, partition.UpdatedReplicas) {
-			keepReplicaAssignments = true
-		}
-	}
-	if !keepReplicaAssignments {
-		changes.ReplicaAssignments = nil
-	}
-	return changes
-}
-
-// helper function to check if there are any actual updates on the topic 
-// when returning applyExistingTopic
-func ensureChangesOccurred(updateChanges *apply.UpdateChangesTracker) (*apply.UpdateChangesTracker) {
-	if (updateChanges.NumPartitions == nil &&
-		updateChanges.NewConfigEntries == nil &&
-		updateChanges.UpdatedConfigEntries == nil &&
-		updateChanges.ReplicaAssignments == nil &&
-		len(updateChanges.MissingKeys) == 0 &&
-		updateChanges.Error == false) {
-		return nil
-	}
-	return updateChanges
-}
-
-// if this is an 'update' change, we need to do some preprocessing
-// to ensure we're not printing a payload without any actual diffs
-func validateChanges(changes apply.NewOrUpdatedChanges) (apply.NewOrUpdatedChanges) {
-	_, isUpdateChange := changes.(*apply.UpdateChangesTracker)
-	if isUpdateChange && changes.(*apply.UpdateChangesTracker) != nil {
-		changes = validateReplicaChanges(changes.(*apply.UpdateChangesTracker))
-		changes = ensureChangesOccurred(changes.(*apply.UpdateChangesTracker))
-	}
-	return changes
-}
-
-
 // isStructNotNil returns if a struct implementing NewOrUpdatedChanges is nil
 func isStructNotNil(changes apply.NewOrUpdatedChanges) bool {
-	switch changes.(type) {
+	switch changes := changes.(type) {
 	case *apply.NewChangesTracker:
-		if changes.(*apply.NewChangesTracker) != nil {
+		if changes != nil {
 			return true
 		} else {
 			return false
 		}
 	case *apply.UpdateChangesTracker:
-		if changes.(*apply.UpdateChangesTracker) != nil {
+		if changes != nil {
 			return true
 		} else {
 			return false
@@ -355,7 +313,6 @@ func applyTopic(
 			TopicConfig:                topicConfig,
 		}
 		topicChanges, err := cliRunner.ApplyTopic(ctx, applierConfig)
-		topicChanges = validateChanges(topicChanges)
 		if err != nil {
 			// If one of the steps after updateSettings errors when updating a topic,
 			// we can be in a state where some (but not all) changes were applied.

@@ -37,11 +37,19 @@ def make_markdown_table(
     table = f"{make_row(headers)}{make_row(line)}{''.join(rows)}"
 
     if error:
-        table = (
+        error_header = (
             "# ERROR - the following error occurred while processing this topic:\n"  # noqa
             f"{error_message}\n\n"
-            "# The following changes were still made:\n"
-        ) + table
+        )
+        # if there's actual changes, report them as having still occurred
+        if len(content) > 1:
+            table = (
+                error_header
+                + "# The following changes were still made:\n\n"
+                + table
+            )
+        else:
+            table = error_header + "# No changes were made."
 
     return f"%%%\n{table}%%%"
 
@@ -86,6 +94,9 @@ class NewTopic(Topic):
             [str(entry["name"]), str(entry["value"])]
             for entry in raw_content["configEntries"]
         ]
+        # if nothing changed, report no changes
+        if len(change_set) == 1:
+            change_set = []
         return NewTopic(
             name=raw_content["topic"],
             dry_run=raw_content["dryRun"],
@@ -169,6 +180,8 @@ class UpdatedTopic(Topic):
                     for p in assignments
                 ]
             )
+        if len(change_set) == 1:
+            change_set = []
 
         return UpdatedTopic(
             name=raw_content["topic"],

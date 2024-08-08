@@ -111,7 +111,6 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	if changes == nil {
 		return
 	}
-
 	for _, diffAssignment := range desiredAssignments {
 		for i, partition := range *changes.ReplicaAssignments {
 			if partition.Partition == diffAssignment.ID {
@@ -209,6 +208,33 @@ func NewTopicApplier(
 	}, nil
 }
 
+// helper function to check if there are any actual updates on the topic 
+// when returning applyExistingTopic
+func ensureChangesOccurred(updateChanges *UpdateChangesTracker) (*UpdateChangesTracker) {
+	replicaAssignmentsChanged := false
+	if updateChanges.ReplicaAssignments != nil {
+		for _, partition := range *updateChanges.ReplicaAssignments {
+			if partition.UpdatedReplicas != nil {
+				replicaAssignmentsChanged = true
+			}
+		}
+	}
+	if !replicaAssignmentsChanged {
+		updateChanges.ReplicaAssignments = nil
+	}
+
+	// if nothing actually changed, report changes as nil
+	if (updateChanges.NumPartitions == nil &&
+		updateChanges.NewConfigEntries == nil &&
+		updateChanges.UpdatedConfigEntries == nil &&
+		len(updateChanges.MissingKeys) == 0 &&
+		updateChanges.ReplicaAssignments == nil &&
+		!updateChanges.Error) {
+		return nil
+	}
+	return updateChanges
+}
+
 // Apply runs a single "apply" run on the configured topic. The general flow is:
 //
 //  1. Validate configs
@@ -245,6 +271,10 @@ func (t *TopicApplier) Apply(ctx context.Context) (NewOrUpdatedChanges, error) {
 		// if the topic doesn't exist, create it
 		if err == admin.ErrTopicDoesNotExist {
 			newTopicChanges, err := t.applyNewTopic(ctx)
+			if err != nil {
+				newTopicChanges.Error = true
+				newTopicChanges.ErrorMessage = err.Error()
+			}
 			return newTopicChanges, err
 		}
 		return nil, err
@@ -252,7 +282,11 @@ func (t *TopicApplier) Apply(ctx context.Context) (NewOrUpdatedChanges, error) {
 
 	// if the topic does exist, update it
 	updatedTopic, err := t.applyExistingTopic(ctx, topicInfo)
-	return updatedTopic, err
+	if err != nil {
+		updatedTopic.Error = true
+    updatedTopic.ErrorMessage = err.Error()
+	}
+	return ensureChangesOccurred(updatedTopic), err
 }
 
 func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, error) {
@@ -296,14 +330,10 @@ func (t *TopicApplier) applyNewTopic(ctx context.Context) (*NewChangesTracker, e
 	}
 
 	if err := t.updatePlacement(ctx, -1, true, nil); err != nil {
-		changes.Error = true
-    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
 	if err := t.updateLeaders(ctx, -1); err != nil {
-		changes.Error = true
-    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
@@ -329,7 +359,7 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	if err := t.updateSettings(ctx, topicInfo, changes); err != nil {
-		return nil, err
+		return changes, err
 	}
 
 	if err := t.updateReplication(ctx, topicInfo); err != nil {
@@ -341,8 +371,6 @@ func (t *TopicApplier) applyExistingTopic(
 			log.Warnf("UpdatePartitions failure ignored. topic: %v, error: %v", t.topicName, err)
 			return changes, nil
 		}
-		changes.Error = true
-    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
@@ -353,8 +381,7 @@ func (t *TopicApplier) applyExistingTopic(
 		assignmentChanges = append(assignmentChanges, ReplicaAssignmentChanges{
 			Partition:       assignment.ID,
 			CurrentReplicas: assignment.Replicas,
-			// initially setting current == updated so we can check if anything changed later on
-			UpdatedReplicas: assignment.Replicas,
+			UpdatedReplicas: nil,
 		})
 	}
 	changes.ReplicaAssignments = &assignmentChanges
@@ -365,8 +392,6 @@ func (t *TopicApplier) applyExistingTopic(
 		false,
 		changes,
 	); err != nil {
-		changes.Error = true
-    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
@@ -374,8 +399,6 @@ func (t *TopicApplier) applyExistingTopic(
 		ctx,
 		-1,
 	); err != nil {
-		changes.Error = true
-    changes.ErrorMessage = err.Error()
 		return changes, err
 	}
 
