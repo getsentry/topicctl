@@ -41,7 +41,7 @@ def make_markdown_table(
             "# ERROR - the following error occurred while processing this topic:\n"  # noqa
             f"{error_message}\n\n"
         )
-        # if there's actual changes, report them as having still occurred
+        # if changes were still made before an error, report them
         if len(content) > 1:
             table = (
                 error_header

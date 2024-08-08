@@ -111,6 +111,7 @@ func (changes *UpdateChangesTracker) mergeReplicaAssignments(
 	if changes == nil {
 		return
 	}
+
 	for _, diffAssignment := range desiredAssignments {
 		for i, partition := range *changes.ReplicaAssignments {
 			if partition.Partition == diffAssignment.ID {
@@ -351,11 +352,11 @@ func (t *TopicApplier) applyExistingTopic(
 	}
 
 	changes := &UpdateChangesTracker{
-		Action:       ActionEnumUpdate,
-		DryRun:       t.config.DryRun,
-		Topic:        t.topicName,
-		MissingKeys:  make([]string, 0),
-		Error:        false,
+		Action:      ActionEnumUpdate,
+		DryRun:      t.config.DryRun,
+		Topic:       t.topicName,
+		MissingKeys: make([]string, 0),
+		Error:       false,
 	}
 
 	if err := t.updateSettings(ctx, topicInfo, changes); err != nil {

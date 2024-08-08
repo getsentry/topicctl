@@ -214,6 +214,19 @@ func applyRun(cmd *cobra.Command, args []string) error {
 	return errs
 }
 
+// prints changes as JSON to stdout
+func printJson(changes apply.NewOrUpdatedChanges) (map[string]interface{}, error) {
+	jsonChanges, err := json.Marshal(changes)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("%s\n", jsonChanges)
+	// return unmarshalled map
+	changesMap := make(map[string]interface{})
+	err = json.Unmarshal(jsonChanges, &changesMap)
+	return changesMap, err
+}
+
 // isStructNotNil returns if a struct implementing NewOrUpdatedChanges is nil
 func isStructNotNil(changes apply.NewOrUpdatedChanges) bool {
 	switch changes := changes.(type) {
@@ -232,19 +245,6 @@ func isStructNotNil(changes apply.NewOrUpdatedChanges) bool {
 	default:
 		return false
 	}
-}
-
-// prints changes as JSON to stdout
-func printJson(changes apply.NewOrUpdatedChanges) (map[string]interface{}, error) {
-	jsonChanges, err := json.Marshal(changes)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("%s\n", jsonChanges)
-	// return unmarshalled map
-	changesMap := make(map[string]interface{})
-	err = json.Unmarshal(jsonChanges, &changesMap)
-	return changesMap, err
 }
 
 func applyTopic(
@@ -328,7 +328,7 @@ func applyTopic(
 			return err
 		}
 
-		// if validateChanges finds there were no changes, topicChanges gets set to nil
+		// if there were no changes, topicChanges can be nil
 		if isStructNotNil(topicChanges) {
 			if _, err := printJson(topicChanges); err != nil {
 				return err
