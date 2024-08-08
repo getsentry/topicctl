@@ -409,8 +409,6 @@ func (t *TopicApplier) applyExistingTopic(
 			t.maxBatchSize,
 			changes,
 		); err != nil {
-			changes.Error = true
-			changes.ErrorMessage = err.Error()
 			return changes, err
 		}
 
@@ -418,8 +416,6 @@ func (t *TopicApplier) applyExistingTopic(
 			ctx,
 			-1,
 		); err != nil {
-			changes.Error = true
-			changes.ErrorMessage = err.Error()
 			return changes, err
 		}
 	}

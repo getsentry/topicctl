@@ -220,6 +220,7 @@ func printJson(changes apply.NewOrUpdatedChanges) (map[string]interface{}, error
 	if err != nil {
 		return nil, err
 	}
+	// print json to stdout
 	fmt.Printf("%s\n", jsonChanges)
 	// return unmarshalled map
 	changesMap := make(map[string]interface{})
