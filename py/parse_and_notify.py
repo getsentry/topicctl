@@ -9,10 +9,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from infra_event_notifier.datadog_notifier import (
-    DatadogNotifier,
-    SlackNotifier,
-)
+from infra_event_notifier.datadog_notifier import DatadogNotifier
+from infra_event_notifier.slack_notifier import SlackNotifier
 
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
@@ -88,8 +86,10 @@ def make_slack_message(
     for i in range(num_cols):
         for row in content:
             max_len[i] = max(max_len[i], len(str(row[i])))
-    # 2 * len(headers) to account for the whitespace added in each row
-    line = ["-" * (sum(max_len) + 2 * len(headers))]
+
+    # 3 * (len(headers) - 1) because we need to add 3 dashes for each internal
+    # column separator (i.e ' | ')
+    line = ["-" * (sum(max_len) + 3 * (len(headers) - 1))]
     rows = [make_row(r, max_len) for r in content]
     table = (
         f"```{make_row(headers, max_len)}"
@@ -140,6 +140,14 @@ class NewTopic(Topic):
             error_message=self.error_message,
         )
 
+    def render_slack_msg(self) -> str:
+        return make_slack_message(
+            headers=["Parameter", "Value"],
+            content=[["Topic Name", self.name], *self.change_set],
+            error=self.error,
+            error_message=self.error_message,
+        )
+
     @classmethod
     def build(cls, raw_content: Mapping[str, Any]) -> NewTopic:
         change_set = [["Action (create/update)", "create"]]
@@ -177,6 +185,14 @@ class UpdatedTopic(Topic):
 
     def render_table(self) -> str:
         return make_markdown_table(
+            headers=["Parameter", "Old Value", "New Value"],
+            content=self.change_set,
+            error=self.error,
+            error_message=self.error_message,
+        )
+
+    def render_slack_msg(self) -> str:
+        return make_slack_message(
             headers=["Parameter", "Old Value", "New Value"],
             content=self.change_set,
             error=self.error,
