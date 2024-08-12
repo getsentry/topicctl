@@ -2,7 +2,12 @@ from typing import Sequence
 
 import pytest
 
-from parse_and_notify import NewTopic, UpdatedTopic, make_markdown_table
+from parse_and_notify import (
+    NewTopic,
+    UpdatedTopic,
+    make_markdown_table,
+    make_slack_message,
+)
 
 DD_TABLE_TESTS = [
     pytest.param([], [], "%%%\n||\n||\n%%%", id="Empty table"),
@@ -52,7 +57,7 @@ def test_slack_table(
     content: Sequence[Sequence[str | int | None]],
     expected: str,
 ) -> None:
-    assert make_markdown_table(headers, content, False, None) == expected
+    assert make_slack_message(headers, content, False, None) == expected
 
 
 NEW_TOPIC_RENDERED = """%%%
