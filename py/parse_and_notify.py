@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
-from infra_event_notifier.notifier import Notifier
+from infra_event_notifier.datadog_notifier import DatadogNotifier
 
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
@@ -195,7 +195,7 @@ class UpdatedTopic(Topic):
 def main():
     token = os.getenv("DATADOG_API_KEY")
     assert token is not None, "No Datadog token in DATADOG_API_KEY env var"
-    notifier = Notifier(datadog_api_key=token)
+    notifier = DatadogNotifier(datadog_api_key=token)
 
     for line in sys.stdin:
         topic = json.loads(line)
@@ -226,7 +226,7 @@ def main():
             )
         tags["topicctl_topic"] = topic_content.name
 
-        notifier.notify(title=title, tags=tags, text=text, alert_type="")
+        notifier.send(title=title, body=text, tags=tags, alert_type="")
         print(f"{title}", file=sys.stderr)
 
 
