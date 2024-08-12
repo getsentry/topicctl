@@ -65,13 +65,15 @@ def make_slack_message(
     Formats an ASCII table for slack message since slack's
     markdown support is lacking
     """
+    if not headers and not content:
+        return ""
 
     def make_row(
-        row: Sequence[str | int | None], max_len: Sequence[int]
+        row: Sequence[str | int | None], max_width: Sequence[int]
     ) -> str:
         content = "|".join(
             (
-                " " + str(col).ljust(max_len[i]) + " "
+                " " + str(col).ljust(max_width[i]) + " "
                 for i, col in enumerate(row)
             )
         )
@@ -80,20 +82,20 @@ def make_slack_message(
     assert all(
         len(row) == len(headers) for row in content
     ), "Invalid table format."
-    # get max length of columns
+    # get max width of columns
     num_cols = len(headers)
-    max_len = [len(h) for h in headers]
+    max_width = [len(h) for h in headers]
     for i in range(num_cols):
         for row in content:
-            max_len[i] = max(max_len[i], len(str(row[i])))
+            max_width[i] = max(max_width[i], len(str(row[i])))
 
     # 3 * (len(headers) - 1) because we need to add 3 dashes for each internal
     # column separator (i.e ' | ')
-    line = ["-" * (sum(max_len) + 3 * (len(headers) - 1))]
-    rows = [make_row(r, max_len) for r in content]
+    line = ["-" * (sum(max_width) + 3 * (len(headers) - 1))]
+    rows = [make_row(r, max_width) for r in content]
     table = (
-        f"```{make_row(headers, max_len)}"
-        + f"{make_row(line, max_len)}"
+        f"```{make_row(headers, max_width)}"
+        + f"{make_row(line, max_width)}"
         + f"{''.join(rows)}```"
     )
 

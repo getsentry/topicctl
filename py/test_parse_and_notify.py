@@ -26,17 +26,17 @@ DD_TABLE_TESTS = [
 ]
 
 SLACK_TABLE_TESTS = [
-    pytest.param([], [], "%%%\n||\n||\n%%%", id="Empty table"),
+    pytest.param([], [], "", id="Empty table"),
     pytest.param(
         ["col1", "col2"],
         [],
-        "%%%\n|col1|col2|\n|-|-|\n%%%",
+        "```| col1 | col2 |\n| ----------- |\n```",
         id="Table with header",
     ),
     pytest.param(
         ["col1", "col2"],
         [["val1", "val2"], ["val3", "val4"]],
-        "%%%\n|col1|col2|\n|-|-|\n|val1|val2|\n|val3|val4|\n%%%",
+        "```| col1 | col2 |\n| ----------- |\n| val1 | val2 |\n| val3 | val4 |\n```",  # noqa
         id="Table with header and rows",
     ),
 ]
