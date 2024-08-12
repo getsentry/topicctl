@@ -99,14 +99,14 @@ def make_slack_message(
 
     if error:
         error_header = (
-            "*ERROR - the following error occurred while processing this topic:*\n"  # noqa
+            ":warning: *ERROR - the following error occurred while processing this topic:*\n"  # noqa
             f"{error_message}\n\n"
         )
         # if changes were still made before an error, report them
         if len(content) > 1:
             table = (
                 error_header
-                + "*The following changes were still made:*\n\n"
+                + ":warning: *The following changes were still made:*\n\n"
                 + table
             )
         else:
