@@ -79,7 +79,7 @@ def make_table(
         else ""
     )
     if destination == Destinations.SLACK and table:
-        table = f"```{table}```"
+        table = f"```\n{table}```"
 
     if error_message is not None:
         error_header = (
@@ -245,7 +245,7 @@ def main():
     assert dd_token is not None, "No Datadog token in DATADOG_API_KEY env var"
     assert (
         slack_secret is not None
-    ), "No HMAC secret in KAFKA_CONTROL_PLANE_WEBHOOK_SECRET env var"
+    ), "No HMAC secret in TOPICCTL_WEBHOOK_SECRET env var"
 
     dd_notifier = DatadogNotifier(datadog_api_key=dd_token)
     slack_notifier = SlackNotifier(
@@ -276,19 +276,10 @@ def main():
         dd_table = topic_content.render_table(Destinations.DATADOG)
         slack_table = topic_content.render_table(Destinations.SLACK)
 
-        too_long_message = (
-            "Changes exceed character limit, "
-            "check topicctl logs for more details on changes"
-        )
-
         if len(dd_table) > DATADOG_MAX_LENGTH:
-            dd_table = (
-                dd_table[: (DATADOG_MAX_LENGTH - 100)] + too_long_message
-            )
+            dd_table = dd_table[:(DATADOG_MAX_LENGTH)] + "\n..."
         if len(slack_table) > SLACK_MAX_LENGTH:
-            slack_table = (
-                slack_table[: (SLACK_MAX_LENGTH - 100)] + too_long_message
-            )
+            slack_table = slack_table[:(SLACK_MAX_LENGTH)] + "\n..."
         tags["topicctl_topic"] = topic_content.name
 
         dd_notifier.send(title=title, body=dd_table, tags=tags, alert_type="")
