@@ -63,8 +63,6 @@ def make_table(
         for row in content:
             max_width[i] = max(max_width[i], len(str(row[i])))
 
-    # 3 * (len(headers) - 1) because we need to add 3 dashes for each internal
-    # column separator (i.e ' | ')
     line = ["-" * (width) for width in max_width]
     rows = [make_row(r, max_width) for r in content]
     # only create table body if changes actually occurred
