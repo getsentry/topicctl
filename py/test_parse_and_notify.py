@@ -70,7 +70,7 @@ DD_EMPTY_ERROR_MESSAGE = f"%%%{DD_ERROR_MESSAGE}\n# No changes were made.\n%%%"
 SLACK_ERROR_MESSAGE = (
     ":warning: *ERROR - the following error"
     " occurred while processing this topic:*\n"
-    "this is an error"
+    "this is an error\n"
 )
 SLACK_EMPTY_ERROR_MESSAGE = (
     f"{SLACK_ERROR_MESSAGE}\n:warning: *No changes were made.*\n"
