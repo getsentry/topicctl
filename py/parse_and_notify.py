@@ -7,59 +7,26 @@ import os
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Mapping, Sequence
 
 from infra_event_notifier.datadog_notifier import DatadogNotifier
 from infra_event_notifier.slack_notifier import SlackNotifier
 
+
+class Destinations(Enum):
+    DATADOG = "datadog"
+    SLACK = "slack"
+
+
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
 
-def make_markdown_table(
+def make_table(
     headers: Sequence[str],
     content: Sequence[Sequence[str | int | None]],
-    error: bool,
     error_message: str | None,
-) -> str:
-    """
-    Creates a markdown table given a sequence of Sequences of cells.
-    """
-
-    def make_row(row: Sequence[str | int | None]) -> str:
-        content = "|".join((str(col) for col in row))
-        return f"|{content}|\n"
-
-    assert all(
-        len(row) == len(headers) for row in content
-    ), "Invalid table format."
-
-    line = "-" * len(headers)
-    rows = [make_row(r) for r in content]
-    table = f"{make_row(headers)}{make_row(line)}{''.join(rows)}"
-
-    if error:
-        error_header = (
-            "# ERROR - the following error occurred while processing this topic:\n"  # noqa
-            f"{error_message}\n\n"
-        )
-        # if changes were still made before an error, report them
-        if len(content) > 1:
-            table = (
-                error_header
-                + "# The following changes were still made:\n\n"
-                + table
-            )
-        else:
-            table = error_header + "# No changes were made."
-
-    return f"%%%\n{table}%%%"
-
-
-def make_slack_message(
-    headers: Sequence[str],
-    content: Sequence[Sequence[str | int | None]],
-    error: bool,
-    error_message: str | None,
+    destination: str,
 ) -> str:
     """
     Formats an ASCII table for slack message since slack's
@@ -91,30 +58,43 @@ def make_slack_message(
 
     # 3 * (len(headers) - 1) because we need to add 3 dashes for each internal
     # column separator (i.e ' | ')
-    line = ["-" * (sum(max_width) + 3 * (len(headers) - 1))]
+    line = ["-" * (width) for width in max_width]
     rows = [make_row(r, max_width) for r in content]
+    # only create table body if changes actually occurred
+    # (if no changes then `content` = [["Topic Name", {name}]], hence len > 1)
     table = (
-        f"```{make_row(headers, max_width)}"
-        + f"{make_row(line, max_width)}"
-        + f"{''.join(rows)}```"
-    )
-
-    if error:
-        error_header = (
-            ":warning: *ERROR - the following error occurred while processing this topic:*\n"  # noqa
-            f"{error_message}\n\n"
+        (
+            f"{make_row(headers, max_width)}"
+            + f"{make_row(line, max_width)}"
+            + f"{''.join(rows)}"
         )
-        # if changes were still made before an error, report them
-        if len(content) > 1:
-            table = (
-                error_header
-                + ":warning: *The following changes were still made:*\n\n"
-                + table
-            )
-        else:
-            table = error_header + "*No changes were made.*"
+        if len(content) > 1
+        else ""
+    )
+    if destination == Destinations.SLACK and table:
+        table = f"```{table}```"
 
-    return f"{table}"
+    if error_message is not None:
+        error_header = (
+            "ERROR - the following error occurred while processing this topic:"
+        )
+        error_footer = (
+            "The following changes were still made:"
+            if len(content) > 1
+            else "No changes were made."
+        )
+        if destination == Destinations.DATADOG:
+            error_header = f"# {error_header}\n"
+            error_footer = f"# {error_footer}\n"
+        elif destination == Destinations.SLACK:
+            error_header = f":warning: *{error_header}*\n"
+            error_footer = f":warning: *{error_footer}*\n"
+        table = error_header + f"{error_message}\n\n" + error_footer + table
+
+    if destination == Destinations.DATADOG:
+        table = f"%%%\n{table}%%%"
+
+    return table
 
 
 @dataclass(frozen=True)
@@ -130,24 +110,15 @@ class Topic(ABC):
 class NewTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
     dry_run: bool
-    error: bool
     error_message: str | None
     name: str
 
-    def render_table(self) -> str:
-        return make_markdown_table(
+    def render_table(self, destination: str) -> str:
+        return make_table(
             headers=["Parameter", "Value"],
             content=[["Topic Name", self.name], *self.change_set],
-            error=self.error,
             error_message=self.error_message,
-        )
-
-    def render_slack_msg(self) -> str:
-        return make_slack_message(
-            headers=["Parameter", "Value"],
-            content=[["Topic Name", self.name], *self.change_set],
-            error=self.error,
-            error_message=self.error_message,
+            destination=destination,
         )
 
     @classmethod
@@ -171,7 +142,6 @@ class NewTopic(Topic):
         return NewTopic(
             name=raw_content["topic"],
             dry_run=raw_content["dryRun"],
-            error=raw_content["error"],
             error_message=raw_content["errorMessage"],
             change_set=change_set,
         )
@@ -181,24 +151,15 @@ class NewTopic(Topic):
 class UpdatedTopic(Topic):
     change_set: Sequence[Sequence[str | int | None]]
     dry_run: bool
-    error: bool
     error_message: str | None
     name: str
 
-    def render_table(self) -> str:
-        return make_markdown_table(
+    def render_table(self, destination: str) -> str:
+        return make_table(
             headers=["Parameter", "Old Value", "New Value"],
             content=self.change_set,
-            error=self.error,
             error_message=self.error_message,
-        )
-
-    def render_slack_msg(self) -> str:
-        return make_slack_message(
-            headers=["Parameter", "Old Value", "New Value"],
-            content=self.change_set,
-            error=self.error,
-            error_message=self.error_message,
+            destination=destination,
         )
 
     @classmethod
@@ -265,20 +226,23 @@ class UpdatedTopic(Topic):
         return UpdatedTopic(
             name=raw_content["topic"],
             dry_run=raw_content["dryRun"],
-            error=raw_content["error"],
             error_message=raw_content["errorMessage"],
             change_set=change_set,
         )
 
 
 def main():
+    # API key for datadog
     dd_token = os.getenv("DATADOG_API_KEY")
+    # Signing secret for KCP eng-pipes webhook
     slack_secret = os.getenv("KAFKA_CONTROL_PLANE_WEBHOOK_SECRET")
+    # KCP webhook URL for eng-pipes
     slack_url = os.getenv("ENG_PIPES_URL")
     assert dd_token is not None, "No Datadog token in DATADOG_API_KEY env var"
     assert (
         slack_secret is not None
     ), "No HMAC secret in KAFKA_CONTROL_PLANE_WEBHOOK_SECRET env var"
+
     dd_notifier = DatadogNotifier(datadog_api_key=dd_token)
     slack_notifier = SlackNotifier(
         eng_pipes_key=slack_secret, eng_pipes_url=slack_url
@@ -305,14 +269,20 @@ def main():
             f"{dry_run}Topicctl ran apply on topic {topic_content.name} "
             f"in region {SENTRY_REGION}"
         )
-        dd_table = topic_content.render_table()
-        slack_table = topic_content.render_slack_msg()
-        if len(dd_table) > 3950 or len(slack_table) > 2950:
-            dd_table = (
-                "Changes exceed character limit, "
-                "check topicctl logs for details on changes"
-            )
-            slack_table = dd_table
+        dd_table = topic_content.render_table(Destinations.DATADOG)
+        slack_table = topic_content.render_table(Destinations.SLACK)
+
+        too_long_message = (
+            "Changes exceed character limit, "
+            "check topicctl logs for more details on changes"
+        )
+        # DD event max length is 4000 chars,
+        # slack msg max length is 3000 chars,
+        # we check 100 lower to leave room for titles
+        if len(dd_table) > 3900:
+            dd_table = dd_table[:3800] + too_long_message
+        if len(slack_table) > 2900:
+            slack_table = slack_table[:2800] + too_long_message
         tags["topicctl_topic"] = topic_content.name
 
         dd_notifier.send(title=title, body=dd_table, tags=tags, alert_type="")
