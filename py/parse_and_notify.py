@@ -239,11 +239,8 @@ class UpdatedTopic(Topic):
 
 
 def main():
-    # API key for datadog
     dd_token = os.getenv("DATADOG_API_KEY")
-    # Signing secret for KCP eng-pipes webhook
-    slack_secret = os.getenv("KAFKA_CONTROL_PLANE_WEBHOOK_SECRET")
-    # KCP webhook URL for eng-pipes
+    slack_secret = os.getenv("TOPICCTL_WEBHOOK_SECRET")
     slack_url = os.getenv("ENG_PIPES_URL")
     assert dd_token is not None, "No Datadog token in DATADOG_API_KEY env var"
     assert (
