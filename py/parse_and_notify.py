@@ -19,6 +19,13 @@ class Destinations(Enum):
     SLACK = "slack"
 
 
+# DD event max length is 4000 chars,
+# slack msg max length is 3000 chars,
+# we check 100 lower to leave room for titles
+DATADOG_MAX_LENGTH = 3900
+SLACK_MAX_LENGTH = 2900
+
+
 SENTRY_REGION = os.getenv("SENTRY_REGION", "unknown")
 
 
@@ -276,13 +283,15 @@ def main():
             "Changes exceed character limit, "
             "check topicctl logs for more details on changes"
         )
-        # DD event max length is 4000 chars,
-        # slack msg max length is 3000 chars,
-        # we check 100 lower to leave room for titles
-        if len(dd_table) > 3900:
-            dd_table = dd_table[:3800] + too_long_message
-        if len(slack_table) > 2900:
-            slack_table = slack_table[:2800] + too_long_message
+
+        if len(dd_table) > DATADOG_MAX_LENGTH:
+            dd_table = (
+                dd_table[: (DATADOG_MAX_LENGTH - 100)] + too_long_message
+            )
+        if len(slack_table) > SLACK_MAX_LENGTH:
+            slack_table = (
+                slack_table[: (SLACK_MAX_LENGTH - 100)] + too_long_message
+            )
         tags["topicctl_topic"] = topic_content.name
 
         dd_notifier.send(title=title, body=dd_table, tags=tags, alert_type="")
