@@ -692,11 +692,13 @@ func (t TopicInfo) WrongLeaderPartitions(subset []int) []PartitionInfo {
 		if _, ok := subsetMap[partition.ID]; len(subset) > 0 && !ok {
 			continue
 		}
+		log.Infof("partition leader = %d, partition replicas = %#v", partition.Leader, partition.Replicas)
 
 		if partition.Leader != partition.Replicas[0] {
 			wrongLeaders = append(wrongLeaders, partition)
 		}
 	}
+	log.Infof("wrongLeaders = %#v", wrongLeaders)
 
 	return wrongLeaders
 }
