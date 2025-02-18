@@ -510,10 +510,11 @@ func (t *TopicApplier) checkExistingState(
 			}
 		}
 	} else {
-		log.Warnf(
+		log.Errorf(
 			"One or more replicas are not in-sync; there may be an ongoing migration:\n%s",
 			admin.FormatTopicPartitions(outOfSync, t.brokers),
 		)
+		return errors.New("One or more replicas are not in-sync; there may be an ongoing migration")
 	}
 
 	return nil
