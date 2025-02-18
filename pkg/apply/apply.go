@@ -514,7 +514,7 @@ func (t *TopicApplier) checkExistingState(
 			"One or more replicas are not in-sync; there may be an ongoing migration:\n%s",
 			admin.FormatTopicPartitions(outOfSync, t.brokers),
 		)
-		return errors.New("One or more replicas are not in-sync; there may be an ongoing migration")
+		return errors.New("One or more replicas are not in-sync; we are likely horizontally scaling the cluster that this topic is on")
 	}
 
 	return nil
