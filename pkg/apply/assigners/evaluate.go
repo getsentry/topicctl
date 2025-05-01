@@ -31,15 +31,10 @@ func EvaluateAssignments(
 		if err != nil {
 			return false, err
 		}
-		if !reflect.DeepEqual(
+		return reflect.DeepEqual(
 			replicas,
 			placementConfig.StaticAssignments,
-		) {
-			log.Info(
-				"Current assignment does not match static assignment, rebalancing will take place",
-			)
-		}
-		return true, nil
+		), nil
 	case config.PlacementStrategyStaticInRack:
 		if !(minRacks == 1 && maxRacks == 1) {
 			return false, nil
