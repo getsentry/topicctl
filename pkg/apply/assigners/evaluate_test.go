@@ -26,7 +26,7 @@ func TestEvaluateAssignmentsNonStatic(t *testing.T) {
 			},
 			expectedResults: map[config.PlacementStrategy]bool{
 				config.PlacementStrategyAny:             true,
-				config.PlacementStrategyStatic:          true,
+				config.PlacementStrategyStatic:          false,
 				config.PlacementStrategyStaticInRack:    false,
 				config.PlacementStrategyBalancedLeaders: false,
 				config.PlacementStrategyInRack:          false,
@@ -72,7 +72,7 @@ func TestEvaluateAssignmentsNonStatic(t *testing.T) {
 			},
 			expectedResults: map[config.PlacementStrategy]bool{
 				config.PlacementStrategyAny:             true,
-				config.PlacementStrategyStatic:          true,
+				config.PlacementStrategyStatic:          false,
 				config.PlacementStrategyStaticInRack:    true,
 				config.PlacementStrategyBalancedLeaders: false,
 				config.PlacementStrategyInRack:          true,
@@ -86,7 +86,7 @@ func TestEvaluateAssignmentsNonStatic(t *testing.T) {
 			},
 			expectedResults: map[config.PlacementStrategy]bool{
 				config.PlacementStrategyAny:             true,
-				config.PlacementStrategyStatic:          true,
+				config.PlacementStrategyStatic:          false,
 				config.PlacementStrategyStaticInRack:    false,
 				config.PlacementStrategyBalancedLeaders: false,
 				config.PlacementStrategyInRack:          false,
@@ -103,7 +103,7 @@ func TestEvaluateAssignmentsNonStatic(t *testing.T) {
 			},
 			expectedResults: map[config.PlacementStrategy]bool{
 				config.PlacementStrategyAny:             true,
-				config.PlacementStrategyStatic:          true,
+				config.PlacementStrategyStatic:          false,
 				config.PlacementStrategyStaticInRack:    false,
 				config.PlacementStrategyBalancedLeaders: true,
 				config.PlacementStrategyInRack:          true,
@@ -116,7 +116,7 @@ func TestEvaluateAssignmentsNonStatic(t *testing.T) {
 			},
 			expectedResults: map[config.PlacementStrategy]bool{
 				config.PlacementStrategyAny:             true,
-				config.PlacementStrategyStatic:          true,
+				config.PlacementStrategyStatic:          false,
 				config.PlacementStrategyStaticInRack:    false,
 				config.PlacementStrategyBalancedLeaders: false,
 				config.PlacementStrategyInRack:          true,
