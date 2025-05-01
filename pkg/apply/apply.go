@@ -983,10 +983,6 @@ func (t *TopicApplier) updatePlacementHelper(
 	case config.PlacementStrategyCrossRack:
 		assigner = assigners.NewCrossRackAssigner(t.brokers, picker)
 	case config.PlacementStrategyStatic:
-		log.Infof("Using static assignment")
-		log.Infof("Desired assignments: %v", admin.ReplicasToAssignments(
-			t.topicConfig.Spec.PlacementConfig.StaticAssignments,
-		))
 		assigner = &assigners.StaticAssigner{
 			Assignments: admin.ReplicasToAssignments(
 				t.topicConfig.Spec.PlacementConfig.StaticAssignments,
