@@ -251,7 +251,21 @@ def main():
     )
 
     for line in sys.stdin:
-        topic = json.loads(line)
+        try:
+            topic = json.loads(line)
+        except json.JSONDecodeError:
+            title = f"Topicctl failed to apply in region {SENTRY_REGION}"
+            slack_notifier.send(
+                title=title, body="Topicctl produced invalid JSON"
+            )
+            raise
+
+        if "error" in topic:
+            title = f"Topicctl failed to apply in region {SENTRY_REGION}"
+            slack_notifier.send(title=title, body=topic["error"])
+            print(f"Error: {topic['error']}", file=sys.stderr)
+            exit(-1)
+
         action = topic["action"]
         topic_content = (
             NewTopic.build(topic)
