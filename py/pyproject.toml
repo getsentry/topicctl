@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "topicctl_integration"
 version = "0.0.1"
-requires-python = ">= 3.8"
+requires-python = ">= 3.10"
 
 [tool.black]
 line-length = 79
-target-version = ['py38']
+target-version = ['py310', 'py311', 'py312']
 skip-magic-trailing-comma = true
 
 [tool.isort]
