@@ -253,10 +253,10 @@ def main():
     for line in sys.stdin:
         try:
             topic = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             title = f"Topicctl failed to apply in region {SENTRY_REGION}"
             slack_notifier.send(
-                title=title, body="Topicctl produced invalid JSON"
+                title=title, body=f"Topicctl produced invalid JSON: {e}"
             )
             raise
 
