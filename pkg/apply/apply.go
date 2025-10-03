@@ -266,6 +266,7 @@ func (t *TopicApplier) Apply(ctx context.Context) (NewOrUpdatedChanges, error) {
 	log.Info("Checking if topic already exists...")
 
 	topicInfo, err := t.adminClient.GetTopic(ctx, t.topicName, true)
+	log.Infof("topic info for %s: %+v", t.topicName, topicInfo)
 	if err != nil {
 		// if the topic doesn't exist, create it
 		if err == admin.ErrTopicDoesNotExist {
