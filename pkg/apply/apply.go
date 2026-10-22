@@ -576,7 +576,7 @@ func (t *TopicApplier) updateSettings(
 		}
 
 		if reduced {
-			log.Infof(
+			log.Info(
 				strings.Join(
 					[]string{
 						"Note: Retention drop has been reduced to minimize cluster disruption.",
