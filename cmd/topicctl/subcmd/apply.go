@@ -7,8 +7,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/segmentio/topicctl/pkg/admin"
 	"github.com/segmentio/topicctl/pkg/apply"
@@ -215,6 +217,16 @@ func applyRun(cmd *cobra.Command, args []string) error {
 }
 
 // prints changes as JSON to stdout
+// sanitizeErrorString replaces all non-printable characters with spaces
+func sanitizeErrorString(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return ' '
+	}, s)
+}
+
 func printJson(changes apply.NewOrUpdatedChanges) (map[string]interface{}, error) {
 	jsonChanges, err := json.Marshal(changes)
 	if err != nil {
@@ -320,11 +332,16 @@ func applyTopic(
 			// Some topic creation errors also still create the topic
 			log.Error("Error detected while creating or updating a topic")
 			log.Error("The following changes were still made:")
-			partialChanges, printErr := printJson(topicChanges)
-			if printErr != nil {
-				log.Error("Error printing JSON changes data")
+
+			if topicChanges == nil {
+				fmt.Printf("{\"error\": \"%s\"}\n", sanitizeErrorString(err.Error()))
 			} else {
-				log.Errorf("%#v", partialChanges)
+				partialChanges, printErr := printJson(topicChanges)
+				if printErr != nil {
+					log.Error("Error printing JSON changes data")
+				} else {
+					log.Errorf("%#v", partialChanges)
+				}
 			}
 			return err
 		}

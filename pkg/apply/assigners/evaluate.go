@@ -6,6 +6,7 @@ import (
 
 	"github.com/segmentio/topicctl/pkg/admin"
 	"github.com/segmentio/topicctl/pkg/config"
+	log "github.com/sirupsen/logrus"
 )
 
 // EvaluateAssignments determines whether the given assignments are consistent
@@ -60,8 +61,15 @@ func EvaluateAssignments(
 	case config.PlacementStrategyCrossRack:
 		brokerRacks := admin.BrokerRacks(brokers)
 		for _, assignment := range assignments {
+			// If a topicctl rebalance gets stopped while running, we can be in a state where
+			// multiple replicas are on the same rack. This should be fixed on a re-run with
+			// cross-rack assignment.
 			if len(assignment.Replicas) != len(assignment.DistinctRacks(brokerRacks)) {
-				return false, nil
+				log.Warnf(
+					"Expected replicas to equal number of racks, but got %d replicas and %d racks for assignment %v",
+					len(assignment.Replicas), len(assignment.DistinctRacks(brokerRacks)), assignment,
+				)
+				return true, nil
 			}
 		}
 		return true, nil

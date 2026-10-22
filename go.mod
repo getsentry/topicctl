@@ -2,6 +2,8 @@ module github.com/segmentio/topicctl
 
 go 1.18
 
+toolchain go1.26.10
+
 require (
 	github.com/aws/aws-sdk-go v1.49.12
 	github.com/briandowns/spinner v1.19.0
