@@ -1,5 +1,5 @@
 # build topicctl
-FROM --platform=$BUILDPLATFORM golang:1.22 as builder
+FROM --platform=$BUILDPLATFORM golang:1.26 as builder
 ENV SRC github.com/getsentry/topicctl
 ENV CGO_ENABLED=0
 
